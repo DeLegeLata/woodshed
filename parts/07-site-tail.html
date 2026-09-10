@@ -1,0 +1,12 @@
+
+<script>
+/* Service worker: makes Woodshed installable and lets it run with no signal.
+   Registered late so a failure here can never stop the app booting. */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

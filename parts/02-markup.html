@@ -1,0 +1,291 @@
+
+<div class="app">
+
+  <header class="head">
+    <span class="lamp" id="lamp" aria-hidden="true"></span>
+    <span class="brand">Woodshed</span>
+    <span class="spacer"></span>
+    <span class="streak-chip" id="streakChip">0 day</span>
+  </header>
+
+  <!-- ============ HOME / SET THE TIME ============ -->
+  <section id="scr-home" class="stack">
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Session length</div>
+      <h2 style="margin-top:-4px">How long do you want to practice?</h2>
+      <div class="dial" style="margin:10px 0 4px">
+        <button class="knob" id="minusBtn" aria-label="Five minutes less">&minus;</button>
+        <div class="readout">
+          <div class="num" id="minsNum">20</div>
+          <div class="unit">minutes</div>
+        </div>
+        <button class="knob" id="plusBtn" aria-label="Five minutes more">+</button>
+      </div>
+      <button class="btn primary wide" id="buildBtn">Build my session</button>
+      <div class="tiny dim" id="homeNext"></div>
+    </div>
+
+    <div class="plate plate-pad stack-sm">
+      <div class="legend">This week</div>
+      <div class="weekdots" id="weekDots"></div>
+      <div class="statgrid" style="margin-top:4px">
+        <div class="stat"><div class="n" id="stStreak">0</div><div class="l">Day streak</div></div>
+        <div class="stat"><div class="n" id="stWeek">0</div><div class="l">Min this week</div></div>
+        <div class="stat"><div class="n" id="stModes">0</div><div class="l">Modes learned</div></div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn quiet" data-go="tuner">Tuner</button>
+      <button class="btn quiet" data-go="jam">Free jam</button>
+      <button class="btn quiet" data-go="songs">Songs</button>
+      <button class="btn quiet" data-go="stats">Progress</button>
+      <button class="btn quiet" data-go="settings">Settings</button>
+    </div>
+  </section>
+
+  <!-- ============ PLAN PREVIEW ============ -->
+  <section id="scr-plan" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Tonight's plan</div>
+      <h2 id="planTitle" style="margin-top:-4px">20 minutes</h2>
+      <div class="blocklist" id="planList"></div>
+      <div class="row">
+        <button class="btn quiet" id="reshuffleBtn" style="flex:1">Shuffle</button>
+        <button class="btn quiet" id="planBackBtn" style="flex:1">Change time</button>
+      </div>
+      <button class="btn primary wide" id="startBtn">Start &mdash; tune up first</button>
+      <button class="btn quiet wide" id="skipTuneBtn">Skip tuning, go straight in</button>
+    </div>
+  </section>
+
+  <!-- ============ TUNER ============ -->
+  <section id="scr-tuner" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Tuner</div>
+      <div class="tuner-note" id="tunerNote">&mdash;</div>
+      <div class="tuner-cents" id="tunerCents">play a string</div>
+      <div class="tuner-meter">
+        <div class="ticks" id="tunerTicks"></div>
+        <div class="needle" id="tunerNeedle"></div>
+      </div>
+      <div class="stringdots" id="stringDots"></div>
+      <div class="tiny dim" id="tunerMsg">Tap below to let Woodshed hear your guitar.</div>
+      <button class="btn wide" id="micBtn">Turn on the microphone</button>
+      <button class="btn primary wide" id="tunerDoneBtn">In tune &mdash; let's go</button>
+      <button class="btn quiet wide" data-go="home">Back</button>
+    </div>
+  </section>
+
+  <!-- ============ PRACTICE BLOCK ============ -->
+  <section id="scr-block" hidden>
+    <div class="plate plate-pad stack" style="margin-bottom:14px">
+      <div class="row" style="align-items:center">
+        <div class="hud" style="flex:1">
+          <div class="clock" id="blockClock">00:00</div>
+          <div>
+            <div class="legend" id="blockKind">Warmup</div>
+            <div class="bpm" id="blockMeta">&nbsp;</div>
+          </div>
+        </div>
+        <button class="btn quiet" id="pauseBtn">Pause</button>
+      </div>
+      <div class="progressbar"><i id="blockBar" style="width:0%"></i></div>
+      <h2 id="blockTitle">&nbsp;</h2>
+      <div class="prose tiny" id="blockBrief"></div>
+    </div>
+
+    <!-- lesson card, shown when a new thing is introduced -->
+    <div class="plate plate-pad stack" id="lessonCard" hidden style="margin-bottom:14px">
+      <div class="legend legend-amber">New tonight</div>
+      <h2 id="lessonTitle"></h2>
+      <div class="prose" id="lessonBody"></div>
+      <button class="btn primary wide" id="lessonGotIt">Got it &mdash; play it</button>
+    </div>
+
+    <!-- fretboard -->
+    <div class="plate plate-pad stack" id="fretCard" hidden style="margin-bottom:14px">
+      <div class="row" style="align-items:center;gap:8px">
+        <div class="legend" id="fretLabel" style="flex:1"></div>
+        <div class="seg" style="width:150px">
+          <button id="lblDeg" aria-pressed="true">Degrees</button>
+          <button id="lblNote" aria-pressed="false">Notes</button>
+        </div>
+      </div>
+      <div class="fretwrap" id="fretWrap"></div>
+      <div class="rotate-hint show">Turn your phone sideways for a full-width neck.</div>
+      <div class="row">
+        <button class="btn quiet" id="guideBtn" style="flex:1">Guide me through it</button>
+        <button class="btn quiet" id="listenBtn" style="flex:1">Hear it</button>
+      </div>
+    </div>
+
+    <!-- quiz -->
+    <div class="plate plate-pad stack" id="quizCard" hidden style="margin-bottom:14px">
+      <div class="legend legend-amber"><span id="quizCount"></span></div>
+      <h2 id="quizQ"></h2>
+      <div class="quizopts" id="quizOpts"></div>
+      <div class="prose tiny" id="quizWhy" hidden></div>
+    </div>
+
+    <!-- transport -->
+    <div class="plate plate-pad stack" style="margin-bottom:14px">
+      <div class="row" style="align-items:center">
+        <div class="legend" style="flex:1">Backing</div>
+        <div class="mono" id="bpmReadout">100 BPM</div>
+      </div>
+      <input type="range" id="bpmSlider" min="40" max="220" step="1" value="100" aria-label="Tempo">
+      <div class="row wrap">
+        <button class="btn quiet" id="tapBtn">Tap tempo</button>
+        <button class="btn quiet" id="bpmDown">&minus;5</button>
+        <button class="btn quiet" id="bpmUp">+5</button>
+        <button class="btn quiet" id="recBtn">Record</button>
+      </div>
+      <div class="seg" id="backingSeg">
+        <button data-mode="click" aria-pressed="true">Click</button>
+        <button data-mode="drums" aria-pressed="false">Drums</button>
+        <button data-mode="band" aria-pressed="false">Band</button>
+        <button data-mode="off" aria-pressed="false">Off</button>
+      </div>
+      <div class="row wrap" id="extraControls"></div>
+      <button class="btn primary wide" id="playBtn">Play</button>
+    </div>
+
+    <div class="plate plate-pad stack" style="margin-bottom:14px">
+      <div class="row">
+        <button class="btn quiet" id="skipBlockBtn" style="flex:1">Skip block</button>
+        <button class="btn quiet" id="nextBlockBtn" style="flex:1">Done &mdash; next</button>
+      </div>
+      <button class="btn quiet wide danger" id="bailBtn">Abandon plan, just jam</button>
+    </div>
+  </section>
+
+  <!-- ============ BLOCK END ============ -->
+  <section id="scr-blockend" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Time's up on that one</div>
+      <h2 id="endBlockTitle"></h2>
+      <div id="endScoreWrap" hidden>
+        <div class="kv"><span class="k">Notes in the shape</span><span class="v" id="endAcc">&mdash;</span></div>
+        <div class="kv"><span class="k">On the beat</span><span class="v" id="endTime">&mdash;</span></div>
+      </div>
+      <div id="endRateWrap">
+        <div class="legend" style="margin-bottom:8px">How did that go?</div>
+        <div class="rate">
+          <button data-rate="3"><span class="e">&#9679;&#9679;&#9679;</span><span class="t">Nailed it</span></button>
+          <button data-rate="2"><span class="e">&#9679;&#9679;</span><span class="t">Okay</span></button>
+          <button data-rate="1"><span class="e">&#9679;</span><span class="t">Struggled</span></button>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn quiet" id="extendBtn" style="flex:1">+5 more minutes</button>
+        <button class="btn primary" id="continueBtn" style="flex:1">Next block</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DEBRIEF ============ -->
+  <section id="scr-done" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Session complete</div>
+      <div class="readout" style="margin:6px auto">
+        <div class="num" id="doneStreak">1</div>
+        <div class="unit">day streak</div>
+      </div>
+      <div class="statgrid">
+        <div class="stat"><div class="n" id="doneMins">0</div><div class="l">Minutes</div></div>
+        <div class="stat"><div class="n" id="doneWeek">0</div><div class="l">Min this week</div></div>
+        <div class="stat"><div class="n" id="doneTotal">0</div><div class="l">Hours total</div></div>
+      </div>
+      <div class="weekdots" id="doneWeekDots"></div>
+      <div class="prose tiny" id="doneNotes"></div>
+      <div class="reclist" id="doneRecs"></div>
+      <button class="btn primary wide" data-go="home">Done</button>
+    </div>
+  </section>
+
+  <!-- ============ FREE JAM ============ -->
+  <section id="scr-jam" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Free jam</div>
+      <h2 style="margin-top:-4px">No plan, no clock</h2>
+      <div class="row" style="align-items:center">
+        <div class="legend" style="flex:1">Tempo</div>
+        <div class="mono" id="jamBpmReadout">100 BPM</div>
+      </div>
+      <input type="range" id="jamBpm" min="40" max="220" step="1" value="100" aria-label="Tempo">
+      <div class="grid2">
+        <label class="field"><span class="legend">Key</span><select id="jamKey"></select></label>
+        <label class="field"><span class="legend">Mode</span><select id="jamMode"></select></label>
+      </div>
+      <label class="field"><span class="legend">Progression</span><select id="jamProg"></select></label>
+      <label class="field"><span class="legend">Or type your own chords</span>
+        <input type="text" id="jamChords" placeholder="Am | F | C | G" autocapitalize="words" autocomplete="off">
+      </label>
+      <label class="field"><span class="legend">Groove</span><select id="jamGroove"></select></label>
+      <div class="seg" id="jamSeg">
+        <button data-mode="click" aria-pressed="false">Click</button>
+        <button data-mode="drums" aria-pressed="false">Drums</button>
+        <button data-mode="band" aria-pressed="true">Band</button>
+      </div>
+      <div class="fretwrap" id="jamFret"></div>
+      <button class="btn primary wide" id="jamPlay">Play</button>
+      <button class="btn quiet wide" data-go="home">Back</button>
+    </div>
+  </section>
+
+  <!-- ============ SONGS ============ -->
+  <section id="scr-songs" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Songs in progress</div>
+      <div id="songList"></div>
+      <div class="row">
+        <input type="text" id="songInput" placeholder="Song and artist" autocomplete="off">
+        <button class="btn" id="songAdd">Add</button>
+      </div>
+      <div class="note">Woodshed rotates these into the last block of a session and remembers which ones still need work.</div>
+      <button class="btn quiet wide" data-go="home">Back</button>
+    </div>
+  </section>
+
+  <!-- ============ STATS ============ -->
+  <section id="scr-stats" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Progress</div>
+      <div class="statgrid">
+        <div class="stat"><div class="n" id="pgStreak">0</div><div class="l">Day streak</div></div>
+        <div class="stat"><div class="n" id="pgBest">0</div><div class="l">Best streak</div></div>
+        <div class="stat"><div class="n" id="pgHours">0</div><div class="l">Hours total</div></div>
+      </div>
+      <div class="legend" style="margin-top:6px">Modes</div>
+      <div id="modeProgress" class="stack-sm"></div>
+      <div class="legend" style="margin-top:6px">Recordings</div>
+      <div class="reclist" id="recList"></div>
+      <button class="btn quiet wide" data-go="home">Back</button>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="scr-settings" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Settings</div>
+      <div class="switch"><span>Count-in bar before playing</span><button class="toggle" id="setCountin" aria-pressed="true"><i></i></button></div>
+      <div class="switch"><span>Accent the downbeat</span><button class="toggle" id="setAccent" aria-pressed="true"><i></i></button></div>
+      <div class="switch"><span>Keep the screen awake</span><button class="toggle" id="setWake" aria-pressed="true"><i></i></button></div>
+      <div class="switch"><span>Record blocks automatically</span><button class="toggle" id="setAutoRec" aria-pressed="false"><i></i></button></div>
+      <label class="field" style="margin-top:12px"><span class="legend">Time signature</span><select id="setSig"></select></label>
+      <label class="field"><span class="legend">Daily reminder</span><input type="time" id="setReminder" value="19:00"></label>
+      <div class="legend" style="margin-top:4px">Rest days &mdash; these never break your streak</div>
+      <div class="weekdots" id="restDays"></div>
+      <div class="legend" style="margin-top:14px">Your data</div>
+      <div class="tiny dim">Everything lives on this device only. Nothing is uploaded anywhere.</div>
+      <div class="row">
+        <button class="btn quiet" id="exportBtn" style="flex:1">Export backup</button>
+        <button class="btn quiet" id="importBtn" style="flex:1">Restore</button>
+      </div>
+      <button class="btn quiet wide danger" id="resetBtn">Erase everything</button>
+      <button class="btn quiet wide" data-go="home">Back</button>
+    </div>
+  </section>
+
+</div>
