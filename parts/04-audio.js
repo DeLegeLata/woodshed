@@ -216,6 +216,8 @@ const Audio2 = (function(){
       const idx = bar % T.chart.length;
       const ch = T.chart[idx];
       if(ch){
+        // tell the UI what's about to sound, timestamped so it can land on the downbeat
+        if(isDownbeat && T.onChord) T.onChord(ch, T.chart[(idx+1) % T.chart.length], idx, T.chart.length, t);
         const v = voiceChord(ch);
         const rootB = bassMidi(ch.pc);
         const fifth = rootB + 7;

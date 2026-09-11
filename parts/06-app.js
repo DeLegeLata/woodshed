@@ -36,24 +36,111 @@ function go(name){
 }
 
 /* ---------- drill content ---------- */
+/* Every drill is written as steps you can follow with a guitar in your hands:
+   which string, which fret, which finger. Fingers: index, middle, ring, pinky. */
 const WARMUPS = [
-  "Chromatic 1‑2‑3‑4 up the low E and back down. One finger per fret, one note per click.",
-  "Spider walk: 1‑3‑2‑4 across all six strings. Strict alternate picking, no rushing.",
-  "Single‑string chromatic run to the 12th fret and back. Watch the picking hand, not the fretting hand.",
-  "String skipping: 1‑2‑3‑4 on the low E, then the D, then the G. Skip the strings in between.",
-  "Finger independence: hold down 1 and 3, move only 2 and 4. It should feel horrible."
+  { t:"Four-finger chromatic", s:"One finger per fret, across all six strings and back.",
+    steps:[
+      "Put your index finger on the 5th fret of the low E string (the thickest).",
+      "Play fret 5 with your index, 6 with your middle, 7 with your ring, 8 with your pinky.",
+      "Move to the next string (A) and play the same four frets with the same fingers.",
+      "Keep going string by string to the high E, then come back down the same way.",
+      "One note per click. Alternate your picking: down, up, down, up."
+    ]},
+  { t:"Spider walk", s:"The same four frets in a scrambled finger order.",
+    steps:[
+      "Low E string, 5th fret, index finger.",
+      "Play frets 5, 7, 6, 8 — using index, ring, middle, pinky in that order.",
+      "Move to the next string and play the same pattern.",
+      "Carry on to the high E and back down.",
+      "If a note buzzes, slow the click down. Clean beats fast every time."
+    ]},
+  { t:"One-string climb", s:"Up and down a single string with strict alternate picking.",
+    steps:[
+      "Low E string only. Start at the 5th fret.",
+      "Play every fret from 5 up to 12, one note per click.",
+      "Come straight back down from 12 to 5.",
+      "Pick down, up, down, up the whole way — never two downstrokes in a row.",
+      "When that feels easy, do the same on the A string."
+    ]},
+  { t:"String skipping", s:"Jump over a string between each set of notes.",
+    steps:[
+      "Play frets 5, 6, 7, 8 on the low E string, index to pinky.",
+      "Skip the A string. Play the same four frets on the D string.",
+      "Skip the G string. Play the same four frets on the B string.",
+      "Now come back: B string, then D string, then low E.",
+      "Rest your spare fingers lightly on the strings you skip so they don't ring."
+    ]},
+  { t:"Finger independence", s:"Hold two fingers still while the other two move.",
+    steps:[
+      "On the D string, put your index on fret 5 and your middle on fret 6. Press and leave them there.",
+      "On the G string, play fret 7 with your ring finger, then fret 8 with your pinky.",
+      "Keep swapping ring and pinky — 7, 8, 7, 8 — one per click.",
+      "Only those two fingers should move. If the held ones lift, slow down.",
+      "Then swap roles: hold ring and pinky on the D string, alternate index and middle on the G."
+    ]}
 ];
 const TECHNIQUES = [
-  { t:"Ascend and descend the shape", s:"Strict alternate picking, three notes per string. Every note the same volume." },
-  { t:"Legato through the shape", s:"Pick only the first note on each string. Hammer and pull the other two." },
-  { t:"Sequence it in fours", s:"1‑2‑3‑4, then 2‑3‑4‑5, then 3‑4‑5‑6, all the way up the shape and back." },
-  { t:"Sequence it in threes", s:"1‑2‑3, 2‑3‑4, 3‑4‑5 through the shape. Slower than you think." }
+  { t:"Up and down the shape", s:"The whole mode shape, strict alternate picking.",
+    steps:[
+      "Start on the lowest note of the shape on the fretboard below — it's on the low E string.",
+      "Play all three notes on that string, then all three on the next string up, and so on.",
+      "At the top of the high E string, come back down the same way.",
+      "Alternate your picking the whole way: down, up, down, up.",
+      "Every note the same volume. The tempo will climb — when you start fluffing notes, knock it back 10."
+    ]},
+  { t:"Legato through the shape", s:"Pick one note per string, hammer and pull the rest.",
+    steps:[
+      "Going up: pick the first note on each string, then hammer-on the next two with your fretting fingers.",
+      "Going down: pick the first note on each string, then pull-off to the next two.",
+      "The hammered and pulled notes should be as loud as the picked one.",
+      "If they're quiet, hammer from closer to the fret, and flick the string as you pull off."
+    ]},
+  { t:"Sequence it in fours", s:"Four-note groups that step up through the shape.",
+    steps:[
+      "Number the notes of the shape from the bottom: 1, 2, 3, 4, 5 and so on.",
+      "Play notes 1, 2, 3, 4. Then start one note higher: 2, 3, 4, 5.",
+      "Then 3, 4, 5, 6. Keep stepping up one note each time.",
+      "At the top, reverse it on the way down.",
+      "Accent the first note of each group so you can hear the pattern."
+    ]},
+  { t:"Sequence it in threes", s:"Three-note groups that step up through the shape.",
+    steps:[
+      "Number the notes of the shape from the bottom.",
+      "Play 1, 2, 3. Then 2, 3, 4. Then 3, 4, 5.",
+      "Keep stepping up one note at a time to the top, then reverse it.",
+      "Threes against a four-beat click will feel lopsided. That's the point — keep counting."
+    ]}
 ];
 const RHYTHMS = [
-  { t:"Land on 2 and 4 only", s:"One note on the backbeat. Nothing else. Sit exactly on the snare." },
-  { t:"Keep the hand moving", s:"Strum the vamp in 8ths, muted. Your hand never stops, even when you don't hit the strings." },
-  { t:"Change the subdivision, not the tempo", s:"Play the shape in 8ths, then triplets, then 16ths. Same click throughout." },
-  { t:"Syncopate it", s:"Land on the ‘and’ of 2 and the ‘and’ of 4. Nothing on the downbeats." }
+  { t:"Land on 2 and 4 only", s:"One note on the backbeat, nothing else.",
+    steps:[
+      "Pick any single note from the shape.",
+      "Count 1, 2, 3, 4 with the drums. Play your note only on 2 and on 4 — exactly with the snare.",
+      "Stay silent on 1 and 3. Resist filling the gaps.",
+      "When it's locked, change the note each time but keep the rhythm identical."
+    ]},
+  { t:"Keep the hand moving", s:"Your strumming hand never stops, even when it misses.",
+    steps:[
+      "Lay your fretting hand lightly across the strings so they're muted and just go 'chk'.",
+      "Strum down on every beat and up in between: down-up, down-up, 8th notes.",
+      "Now only let some strums hit the strings, but keep the hand swinging the whole time.",
+      "The hand is the clock. The strings are optional."
+    ]},
+  { t:"Change the subdivision, not the tempo", s:"Same click, three different speeds of notes.",
+    steps:[
+      "Play notes from the shape at two per click (8th notes) for four bars.",
+      "Then three per click (triplets) for four bars.",
+      "Then four per click (16th notes) for four bars.",
+      "The drums don't change tempo at any point — only how many notes you fit in."
+    ]},
+  { t:"Syncopate it", s:"Play only in the gaps between the beats.",
+    steps:[
+      "Count out loud with the drums: '1 and 2 and 3 and 4 and'.",
+      "Play a single note only on the 'and' after 2, and the 'and' after 4.",
+      "Play nothing on the numbers. It'll feel like you're late — you're not.",
+      "Once it's comfortable, add the 'and' after 1 as well."
+    ]}
 ];
 const IMPROVS = [
   "Start every phrase on the root. End it wherever you like.",
@@ -132,15 +219,19 @@ function buildSession(minutes){
     const kind = p[0], m = mins[idx];
     const b = { kind, minutes:m, target, shape, keyName, groove, chart };
     switch(kind){
-      case "warmup":
-        b.title = "Warm up";
-        b.brief = pick(WARMUPS);
+      case "warmup": {
+        const w = pick(WARMUPS);
+        b.title = w.t;
+        b.brief = w.s;
+        b.steps = w.steps;
         b.backing = "click"; b.bpm = 80;
         break;
+      }
       case "technique": {
         const t = pick(TECHNIQUES);
         b.title = t.t;
-        b.brief = t.s + " Tempo climbs 4 BPM every two bars — hang on as long as you can, then knock it back.";
+        b.brief = t.s + " The tempo climbs 4 BPM every two bars.";
+        b.steps = t.steps;
         b.backing = "click"; b.bpm = baseBpm; b.showFret = true;
         b.ramp = { every:2, step:4, target: baseBpm + 40 };
         b.listen = true;
@@ -149,22 +240,37 @@ function buildSession(minutes){
       case "mode":
         b.title = keyName + " " + target.mode.name;
         b.brief = target.mode.colour;
+        b.steps = [
+          "Read the theory card first — it tells you what this mode is and when you'd actually use it.",
+          "Tap 'Hear it' to hear the shape played through once.",
+          "Turn on 'Root drone' so " + keyName + " is sounding underneath you the whole time.",
+          "Play the shape slowly against the drone. Linger on the highlighted characteristic note and listen to what it does.",
+          "Tap 'Guide me through it' to follow the shape note by note in time with the click."
+        ];
         b.backing = "click"; b.bpm = Math.max(60, baseBpm - 10);
         b.showFret = true; b.drone = true; b.listen = true;
+        b.theory = true;
         b.lesson = target.isNew;
         break;
       case "rhythm": {
         const r = pick(RHYTHMS);
         b.title = r.t;
         b.brief = r.s;
+        b.steps = r.steps;
         b.backing = "drums"; b.bpm = 92;
         break;
       }
       case "improv":
         b.title = "Solo in " + keyName + " " + target.mode.name;
         b.brief = pick(IMPROVS);
+        b.steps = [
+          "Press Play. The band card shows the chord sounding right now and the one coming next.",
+          "Its notes get a green ring on the fretboard — those are the safest notes to land on.",
+          "Aim to hit a ringed note on the first beat of each new bar. Move through the rest freely.",
+          "Then find the characteristic note and land on it on purpose. That's when the mode appears."
+        ];
         b.backing = "band"; b.bpm = Math.max(70, baseBpm);
-        b.showFret = true;
+        b.showFret = true; b.band = true; b.theory = true;
         break;
       case "quiz":
         b.title = "Quick theory";
@@ -173,11 +279,22 @@ function buildSession(minutes){
         b.quiz = true;
         break;
       case "song":
-        b.title = song ? song.name : "Play something you like";
-        b.brief = song
-          ? "Work the part that isn't working. Then play it through once for fun."
-          : "No agenda. Add songs you're learning from the Songs screen and they'll show up here.";
-        b.backing = "off"; b.bpm = 100; b.song = song;
+        if(song){
+          b.title = song.name + (song.artist ? " — " + song.artist : "");
+          b.brief = "Work the part that isn't working, then play it through once for fun.";
+          if(song.bpm){
+            b.bpm = song.bpm; b.backing = "click";
+            b.brief += " The click is set to the song's " + song.bpm + " BPM — press Play to use it.";
+          } else {
+            b.bpm = 100; b.backing = "off";
+            b.brief += " Add its BPM on the Songs screen and the click will be ready at the right speed next time.";
+          }
+        } else {
+          b.title = "Play something you like";
+          b.brief = "No agenda. Add songs you're learning on the Songs screen and they'll show up here.";
+          b.backing = "off"; b.bpm = 100;
+        }
+        b.song = song;
         break;
     }
     return b;
@@ -310,22 +427,19 @@ function enterBlock(){
   $("#blockMeta").textContent = "Block " + (S.idx+1) + " of " + S.plan.blocks.length +
     "  ·  " + b.minutes + " min";
 
-  // lesson
-  const wantLesson = !!b.lesson;
-  $("#lessonCard").hidden = !wantLesson;
-  if(wantLesson){
-    const m = b.target.mode;
-    $("#lessonTitle").textContent = b.keyName + " " + m.name;
-    $("#lessonBody").innerHTML =
-      "<p>" + esc(m.colour) + "</p>" +
-      "<p><em>How to hear it:</em> " + esc(m.vs) + "</p>" +
-      "<p><em>Where it lives:</em> over a " + esc(m.chord) + " chord.</p>" +
-      "<p><em>You already know this sound:</em><br>" +
-      m.songs.map(s => "· " + esc(s)).join("<br>") + "</p>" +
-      "<p><em>Finding it:</em> the root is " + esc(b.keyName) +
-      ". Put it on the low E string, then play the shape below from there. " +
-      "Same shape as every other key — only the starting fret changes.</p>";
-  }
+  // steps — these really are a sequence, so a numbered list is honest here
+  const stepsEl = $("#blockSteps");
+  stepsEl.innerHTML = (b.steps || []).map(s => "<li>" + esc(s) + "</li>").join("");
+  stepsEl.hidden = !(b.steps && b.steps.length);
+
+  // theory: open the first time you meet a mode, collapsed after that
+  S.chord = null;
+  $("#lessonCard").hidden = !b.theory;
+  if(b.theory) renderTheory(b, !!b.lesson);
+
+  // live chord readout — shown for band blocks, and appears in any block if you switch the band on
+  $("#bandCard").hidden = !b.band;
+  resetBandCard(b);
 
   // fretboard
   $("#fretCard").hidden = !b.showFret;
@@ -397,11 +511,150 @@ function updateClock(){
 
 function drawFret(){
   const b = currentBlock(); if(!b || !b.shape) return;
+  const m = b.target.mode;
+  const charPc = (b.target.keyPc + m.formula[m.charIdx]) % 12;
+  const charName = noteName(charPc, parentMajorPc(b.target.keyPc, m.id));
   $("#fretWrap").innerHTML = renderFretboard(b.shape, {
     labelMode: S.labelMode,
-    highlight: S.guide ? S.guideStep % b.shape.notes.length : -1
+    highlight: S.guide ? S.guideStep % b.shape.notes.length : -1,
+    chordPcs: S.chord ? chordToneList(S.chord).map(x => x.pc) : null,
+    chordRootPc: S.chord ? S.chord.pc : -1,
+    charPc
   });
+  let lg = $("#fretLegend");
+  if(!lg){
+    lg = document.createElement("div");
+    lg.id = "fretLegend"; lg.className = "tiny dim";
+    $("#fretWrap").after(lg);
+  }
+  lg.innerHTML =
+    '<span style="color:var(--amber)">&#9679;</span> ' + esc(b.keyName) + ' is home &nbsp;·&nbsp; ' +
+    '<span style="color:var(--amber)">&#9676;</span> dashed ring = ' + esc(charName) +
+    ', the note that makes it ' + esc(m.name) +
+    (S.chord ? ' &nbsp;·&nbsp; <span style="color:var(--go)">&#9711;</span> green ring = in the ' +
+      esc(S.chord.label) + ' chord right now' : '');
 }
+
+/* ---------- theory card ----------
+   Built from the actual key being practised, so every note name on it is real. */
+function renderTheory(b, open){
+  const L = modeLesson(b.target.keyPc, b.target.mode.id);
+  const m = L.m;
+  const name = L.R + " " + m.name;
+
+  const row = (label, notes, against) =>
+    '<div class="lab">' + esc(label) + '</div>' +
+    notes.map((n,i) => {
+      const diff = against && n.pc !== against[i].pc;
+      return '<span class="' + (diff ? "diff" : (i === 0 ? "home" : "")) + '">' + esc(n.name) + '</span>';
+    }).join("");
+  const degRow = (labels) => '<div class="lab"></div>' +
+    labels.map(l => '<span class="deg">' + esc(l) + '</span>').join("");
+
+  const html =
+    '<div class="theory">' +
+      '<p>' + esc(m.colour) + '</p>' +
+
+      '<h3>What it actually is</h3>' +
+      '<p>' + esc(name) + ' uses exactly the same seven notes as <b>' + esc(L.parentName) + ' major</b>. ' +
+        'Nothing is added or removed. Start ' + esc(L.parentName) + ' major on its ' + esc(L.ordinal) +
+        ' note — ' + esc(L.R) + ' — treat that note as home, and you have ' + esc(name) + '.</p>' +
+      '<p>That’s why the shape looks familiar. The notes are the same. What moved is the centre of gravity.</p>' +
+
+      '<h3>Is this the same as “the key of ' + esc(L.R) + '”?</h3>' +
+      '<p>No. ' + esc(L.R) + ' major and ' + esc(name) + ' share a root note but differ by <b>' +
+        L.vsMajor + ' note' + (L.vsMajor === 1 ? '' : 's') + '</b>. ' +
+        esc(L.R) + ' natural minor differs from it by <b>' + L.vsMinor + '</b>. ' +
+        'Highlighted below is where each one parts company with ' + esc(name) + ':</p>' +
+      '<div class="cmpwrap"><div class="cmp">' +
+        row(name, L.mine, null) +
+        row(L.R + " major", L.major, L.mine) +
+        row(L.R + " minor", L.minor, L.mine) +
+        degRow(m.labels) +
+      '</div></div>' +
+      '<p>So “we’re in ' + esc(L.R) + '” isn’t enough to go on. <b>The chords decide which ' +
+        esc(L.R) + ' you’re in</b>, and your job is to listen for them.</p>' +
+
+      '<h3>When you’d actually use it</h3>' +
+      '<p>Reach for ' + esc(m.name) + ' when ' + esc(m.useWhen) + '</p>' +
+      '<p>In ' + esc(L.R) + ', that means a <b>' + esc(L.homeChord) + '</b> chord acting as home. ' +
+        'The band in the solo block plays exactly this kind of vamp, and shows you each chord as it goes by.</p>' +
+      '<p>' + esc(m.warning) + '</p>' +
+
+      '<h3>The one note that makes it ' + esc(m.name) + '</h3>' +
+      '<p>It’s the <b>' + esc(L.charLabel) + '</b> — in ' + esc(L.R) + ' that’s <b>' + esc(L.charNote) + '</b>, ' +
+        'marked with a dashed ring on the fretboard. ' + esc(m.name) + ' is ' + esc(m.nearest) +
+        ' with that one note moved. ' + esc(m.nearestMove.charAt(0).toUpperCase() + m.nearestMove.slice(1)) +
+        ' and you’re in ' + esc(L.R + " " + L.near.name) + ' instead:</p>' +
+      '<div class="cmpwrap"><div class="cmp">' +
+        row(name, L.mine, L.theirs) +
+        row(L.R + " " + L.near.name, L.theirs, L.mine) +
+        degRow(m.labels) +
+      '</div></div>' +
+      '<p>Land on ' + esc(L.charNote) + ' over the ' + esc(L.homeChord) + ' and hold it — that’s the sound. ' +
+        'If you never play that note, the mode never shows up, and everything just sounds like ' +
+        esc(L.parentName) + ' major. That’s usually why modes “all sound the same”.</p>' +
+
+      '<h3>You already know this sound</h3>' +
+      '<p>' + m.songs.map(s => esc(s)).join("<br>") + '</p>' +
+
+      '<h3>Finding it on the neck</h3>' +
+      '<p>Find ' + esc(L.R) + ' on the low E string and start the ' + esc(m.name) +
+        ' shape there. The shape is identical in every key — only the starting fret changes.</p>' +
+      '<p>Or come at it from what you already have: every ' + esc(L.parentName) + ' major shape you know ' +
+        'already contains all these notes. Keep ' + esc(L.R) + ' as home, over a ' + esc(L.homeChord) +
+        ', and you’re playing ' + esc(name) + '.</p>' +
+    '</div>';
+
+  $("#lessonTitle").textContent = name;
+  const body = $("#lessonBody"), btn = $("#lessonGotIt");
+  if(open){
+    $("#lessonEyebrow").textContent = "New tonight";
+    body.innerHTML = html;
+    btn.hidden = false;
+    btn.onclick = () => { renderTheory(b, false); $("#fretCard").scrollIntoView({ behavior:"smooth", block:"start" }); };
+  } else {
+    $("#lessonEyebrow").textContent = "Theory";
+    body.innerHTML = '<details class="more"><summary>When and how to use ' + esc(name) + '</summary>' + html + '</details>';
+    btn.hidden = true;
+  }
+}
+
+/* ---------- live chord readout ---------- */
+function resetBandCard(b){
+  S.chord = null;
+  const chart = (b && b.chart) || [];
+  $("#chordNow").textContent = "—";
+  $("#chordTones").innerHTML = '<span class="tiny dim">Press Play</span>';
+  $("#chordNext").textContent = chart.length ? chart[0].label : "—";
+  $("#chordBar").textContent = chart.length ? chart.length + "-bar loop" : "";
+  $("#barPips").innerHTML = chart.map(() => "<i></i>").join("");
+  let line = $("#chartLine");
+  if(!line){
+    line = document.createElement("div");
+    line.id = "chartLine"; line.className = "chartline";
+    $("#barPips").before(line);
+  }
+  line.innerHTML = chart.map(c => "<span>" + esc(c.label) + "</span>").join("<i>|</i>");
+}
+
+Audio2.T.onChord = function(ch, next, idx, total, t){
+  const delay = Math.max(0, (t - Audio2.now()) * 1000);
+  setTimeout(() => {
+    if(screen !== "block" || !Audio2.T.playing) return;
+    S.chord = ch;
+    $("#bandCard").hidden = false;
+    $("#chordNow").textContent = ch.label;
+    $("#chordNext").textContent = next ? next.label : "—";
+    $("#chordBar").textContent = "bar " + (idx+1) + " of " + total;
+    $("#chordTones").innerHTML = chordToneList(ch).map(x =>
+      '<div class="tone' + (x.root ? ' root' : '') + '"><b>' + esc(x.name) + '</b><span>' + esc(x.label) + '</span></div>'
+    ).join("");
+    $$("#barPips i").forEach((el,i) => el.classList.toggle("on", i === idx));
+    $$("#chartLine span").forEach((el,i) => el.classList.toggle("now", i === idx));
+    drawFret();
+  }, delay);
+};
 
 /* ---------- mic scoring ---------- */
 let stopScoring = null;
@@ -685,9 +938,40 @@ function renderPlan(plan){
   });
 }
 
+function validBpm(raw){
+  if(raw === null || String(raw).trim() === "") return { ok:true, bpm:null };
+  const n = Math.round(Number(raw));
+  return (isFinite(n) && n >= 40 && n <= 220) ? { ok:true, bpm:n } : { ok:false };
+}
+
 function renderSongs(){
   const d = Store.load();
   const el = $("#songList"); el.innerHTML = "";
+  const err = $("#songErr");
+
+  // Song, artist and BPM are separate so a song picked for a session arrives at its real tempo.
+  $("#songAdd").onclick = () => {
+    err.hidden = true;
+    const name = $("#songInput").value.trim();
+    const artist = $("#songArtist").value.trim();
+    if(!name){
+      err.textContent = "Add the song's name first.";
+      err.hidden = false; $("#songInput").focus(); return;
+    }
+    const v = validBpm($("#songBpm").value);
+    if(!v.ok){
+      err.textContent = "BPM needs to be a number from 40 to 220. Leave it blank if you don't know it yet.";
+      err.hidden = false; $("#songBpm").focus(); return;
+    }
+    d.songs.push({ name, artist, bpm:v.bpm, reps:0 });
+    Store.save();
+    ["#songInput","#songArtist","#songBpm"].forEach(id => $(id).value = "");
+    renderSongs();
+    toast("Added " + name + ".");
+  };
+  $("#songArtist").onkeydown = e => { if(e.key === "Enter") $("#songBpm").focus(); };
+  $("#songBpm").onkeydown    = e => { if(e.key === "Enter") $("#songAdd").click(); };
+
   if(!d.songs.length){
     el.innerHTML = '<div class="tiny dim">Nothing here yet. Add a song you\'re working on.</div>';
     return;
@@ -695,12 +979,26 @@ function renderSongs(){
   d.songs.forEach((s,i) => {
     const row = document.createElement("div");
     row.className = "songrow";
-    row.innerHTML = '<div class="nm"><b>' + esc(s.name) + '</b><span>' +
-      (s.reps ? s.reps + " session" + (s.reps>1?"s":"") : "not touched yet") +
-      (s.last ? " · " + s.last : "") + '</span></div>';
+    const meta = [
+      s.artist || null,
+      s.bpm ? s.bpm + " BPM" : "no BPM",
+      s.reps ? s.reps + " session" + (s.reps > 1 ? "s" : "") : "not played yet"
+    ].filter(Boolean).join(" · ");
+    row.innerHTML = '<div class="nm"><b>' + esc(s.name) + '</b><span>' + esc(meta) + '</span></div>';
+
+    const bpmBtn = document.createElement("button");
+    bpmBtn.className = "btn quiet"; bpmBtn.textContent = s.bpm ? "BPM" : "Set BPM";
+    bpmBtn.onclick = () => {
+      const raw = window.prompt("Tempo for " + s.name + " (40–220 BPM):", s.bpm || "");
+      if(raw === null) return;
+      const v = validBpm(raw);
+      if(!v.ok){ toast("BPM needs to be a number from 40 to 220."); return; }
+      s.bpm = v.bpm; Store.save(); renderSongs();
+    };
     const del = document.createElement("button");
     del.className = "btn quiet"; del.textContent = "Remove";
     del.onclick = () => { d.songs.splice(i,1); Store.save(); renderSongs(); };
+    row.appendChild(bpmBtn);
     row.appendChild(del);
     el.appendChild(row);
   });

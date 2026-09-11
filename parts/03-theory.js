@@ -25,6 +25,10 @@ const MODES = [
   { id:"dorian", name:"Dorian", degree:1,
     formula:[0,2,3,5,7,9,10], labels:["1","2","♭3","4","5","6","♭7"],
     chord:"m7", quality:"m7",
+    charIdx:5, nearest:"natural minor", nearestMove:"flatten that 6th",
+    parallel:"minor",
+    useWhen:"the harmony parks on a m7 chord and stays there — a two-chord vamp, a one-chord groove, a modal tune.",
+    warning:"If the progression resolves to the major chord a tone below, you're hearing that major scale and Dorian never actually happens. Dorian needs the m7 to be home.",
     colour:"Minor — but with a bright natural 6th, the one note that stops it sounding sad.",
     vs:"Take natural minor and raise the ♭6 to a natural 6. That single note is the whole mode.",
     songs:["Oye Como Va — Santana","So What — Miles Davis","Riders on the Storm — The Doors"] },
@@ -73,6 +77,78 @@ const MODES = [
 ];
 const MODE_BY_ID = {}; MODES.forEach(m => MODE_BY_ID[m.id] = m);
 
+/* ---------- the theory the lessons are built from ----------
+   nearestId is the mode exactly one note away. Comparing the two side by side
+   isolates the characteristic note — the single note that makes the mode itself. */
+const MODE_THEORY = {
+  dorian:{ nearestId:"aeolian" },
+  mixolydian:{ nearestId:"ionian", charIdx:6, nearest:"the major scale", nearestMove:"raise that ♭7 back up", parallel:"major",
+    useWhen:"a dominant 7 chord is home rather than a pit stop — blues, funk, jam-band vamps, a I7 to ♭VII groove.",
+    warning:"In a normal progression a dominant 7 wants to resolve up a fourth. When it does, you're in the major key it resolved to. Mixolydian only exists where the 7 chord refuses to move." },
+  aeolian:{ nearestId:"dorian", charIdx:5, nearest:"Dorian", nearestMove:"raise that ♭6 to a natural 6", parallel:"minor",
+    useWhen:"the song is plainly in a minor key — a minor chord is home and the ♭VI and ♭VII chords turn up around it.",
+    warning:"If the progression uses a major IV chord, the ♭6 will clash with it. That clash is your signal to switch to Dorian." },
+  ionian:{ nearestId:"mixolydian", charIdx:6, nearest:"Mixolydian", nearestMove:"flatten that 7th", parallel:"major",
+    useWhen:"the song is in an ordinary major key and resolves home to the I chord. Most pop, a lot of rock.",
+    warning:"Be careful holding the 4th over the I chord — it rubs against the major 3rd. Pass through it rather than landing on it." },
+  lydian:{ nearestId:"ionian", charIdx:3, nearest:"the major scale", nearestMove:"lower that ♯4 back down", parallel:"major",
+    useWhen:"a major 7 chord is home and the major chord a tone above keeps appearing beside it — film scores, fusion, dreamy clean-tone tunes.",
+    warning:"Over a progression that resolves V to I, the ♯4 sounds like a wrong note. Lydian needs harmony that stays put." },
+  phrygian:{ nearestId:"aeolian", charIdx:1, nearest:"natural minor", nearestMove:"raise that ♭2", parallel:"minor",
+    useWhen:"a minor chord is home and the chord a semitone above it keeps pulling back down — metal riffs, flamenco, anything menacing.",
+    warning:"The ♭2 is strong enough to take over. Treat it as tension that falls to the root, not a note to hang on." },
+  locrian:{ nearestId:"phrygian", charIdx:4, nearest:"Phrygian", nearestMove:"raise that ♭5 to a perfect 5th", parallel:"minor",
+    useWhen:"you're playing over a m7♭5 chord — nearly always the ii chord in a minor ii–V–i.",
+    warning:"There's no stable home chord, so Locrian is a colour you pass through for one bar, not somewhere to build a solo." }
+};
+MODES.forEach(m => { if(MODE_THEORY[m.id]) Object.assign(m, MODE_THEORY[m.id]); });
+
+const MAJOR_STEPS = [0,2,4,5,7,9,11];
+const INTERVAL_LABEL = {0:"R",1:"♭9",2:"9",3:"♭3",4:"3",5:"4",6:"♭5",7:"5",8:"♯5",9:"6",10:"♭7",11:"7",14:"9",15:"♯9",21:"13"};
+const ORDINAL = ["1st","2nd","3rd","4th","5th","6th","7th"];
+
+/* The major scale a mode borrows its seven notes from. A Dorian -> G major. */
+function parentMajorPc(rootPc, modeId){
+  return ((rootPc - MAJOR_STEPS[MODE_BY_ID[modeId].degree]) % 12 + 12) % 12;
+}
+/* Spell with the parent key's accidentals, so D Phrygian reads E♭ not D♯. */
+function scaleNotes(rootPc, modeId){
+  const m = MODE_BY_ID[modeId], parent = parentMajorPc(rootPc, modeId);
+  return m.formula.map(i => ({ pc:(rootPc + i) % 12, name:noteName((rootPc + i) % 12, parent) }));
+}
+function chordToneList(ch){
+  return ch.intervals.map(iv => ({
+    pc: (ch.pc + iv) % 12,
+    name: noteName((ch.pc + iv) % 12, ch.pc),
+    label: INTERVAL_LABEL[iv] || String(iv),
+    root: iv === 0
+  }));
+}
+
+/* Everything a mode lesson needs, computed for the actual key being practised. */
+function modeLesson(rootPc, modeId){
+  const m = MODE_BY_ID[modeId];
+  const near = MODE_BY_ID[m.nearestId];
+  const parent = parentMajorPc(rootPc, modeId);
+  const R = noteName(rootPc, parent);
+  const mine   = scaleNotes(rootPc, modeId);
+  const theirs = scaleNotes(rootPc, near.id);
+  const major  = scaleNotes(rootPc, "ionian");
+  const minor  = scaleNotes(rootPc, "aeolian");
+  const suffix = { "m7":"m7", "7":"7", "maj7":"maj7", "m7b5":"m7♭5" }[m.quality] || "";
+  return {
+    m, near, R,
+    parentName: noteName(parent, parent),
+    ordinal: ORDINAL[m.degree],
+    mine, theirs, major, minor,
+    charNote: mine[m.charIdx].name,
+    charLabel: m.labels[m.charIdx],
+    homeChord: R + suffix,
+    vsMajor: mine.filter((n,i) => n.pc !== major[i].pc).length,
+    vsMinor: mine.filter((n,i) => n.pc !== minor[i].pc).length
+  };
+}
+
 /* Guitar-friendly keys first: roots low on the neck where E/A knowledge does the work */
 const KEY_ORDER = [4,9,2,7,0,5,11,10,3,8,1,6]; // E A D G C F B Bb Eb Ab Db F#
 
@@ -118,7 +194,7 @@ function renderFretboard(shape, opts){
   const to   = shape.maxFret + 1;
   const n    = to - from + 1;
 
-  const PL = 30, PR = 12, PT = 16, PB = 24, FW = 60, SG = 29;
+  const PL = 30, PR = 12, PT = 24, PB = 30, FW = 60, SG = 29;   // room for rings on the outer strings
   const W = PL + n*FW + PR;
   const H = PT + 5*SG + PB;
   const cellX = k => PL + k*FW;
@@ -176,13 +252,26 @@ function renderFretboard(shape, opts){
     p.push('<text x="'+noteX(f)+'" y="'+(H-7)+'" text-anchor="middle" font-family="Saira Condensed, sans-serif" font-size="12" fill="#6e6355">'+f+'</text>');
   }
 
-  // notes
+  // notes — chord tones of whatever the band is playing get a green ring,
+  // so you can see which notes of the shape land inside the current chord
+  const chordPcs = opts.chordPcs || null;
+  const chordRootPc = (typeof opts.chordRootPc === "number") ? opts.chordRootPc : -1;
+  const charPc = (typeof opts.charPc === "number") ? opts.charPc : -1;
   shape.notes.forEach((nt, i) => {
     const x = noteX(nt.fret), y = strY(nt.string);
     const isHi = (i === highlight);
+    const pc = nt.midi % 12;
     let fill = "#241c15", stroke = "#a3967f", tc = "#ece0c8";
     if(nt.root){ fill = "#ff9d2f"; stroke = "#ffcb84"; tc = "#2a1704"; }
     if(isHi){ fill = "#f2efe6"; stroke = "#ffffff"; tc = "#1a1410"; }
+    // the characteristic note — the one that makes this mode itself — gets a dashed amber ring
+    if(pc === charPc){
+      p.push('<circle cx="'+x+'" cy="'+y+'" r="19" fill="none" stroke="#ff9d2f" stroke-width="1.8" stroke-dasharray="3.5 3"/>');
+    }
+    if(chordPcs && chordPcs.indexOf(pc) !== -1){
+      const isChordRoot = pc === chordRootPc;
+      p.push('<circle cx="'+x+'" cy="'+y+'" r="'+(isChordRoot?16.5:15.5)+'" fill="none" stroke="#7fb489" stroke-width="'+(isChordRoot?3.4:2.2)+'"/>');
+    }
     if(isHi) p.push('<circle cx="'+x+'" cy="'+y+'" r="16" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.55"/>');
     p.push('<circle cx="'+x+'" cy="'+y+'" r="11.5" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.6"/>');
     const txt = labelMode === "deg" ? nt.label : nt.name;

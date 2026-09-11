@@ -93,14 +93,30 @@
       <div class="progressbar"><i id="blockBar" style="width:0%"></i></div>
       <h2 id="blockTitle">&nbsp;</h2>
       <div class="prose tiny" id="blockBrief"></div>
+      <ol class="steps" id="blockSteps" hidden></ol>
     </div>
 
-    <!-- lesson card, shown when a new thing is introduced -->
+    <!-- theory card: fully open the first time you meet a mode, one tap away after that -->
     <div class="plate plate-pad stack" id="lessonCard" hidden style="margin-bottom:14px">
-      <div class="legend legend-amber">New tonight</div>
+      <div class="legend legend-amber" id="lessonEyebrow">New tonight</div>
       <h2 id="lessonTitle"></h2>
-      <div class="prose" id="lessonBody"></div>
+      <div id="lessonBody"></div>
       <button class="btn primary wide" id="lessonGotIt">Got it &mdash; play it</button>
+    </div>
+
+    <!-- what the band is playing right now -->
+    <div class="plate plate-pad stack" id="bandCard" hidden style="margin-bottom:14px">
+      <div class="row" style="align-items:center">
+        <div class="legend legend-amber" style="flex:1">The band is playing</div>
+        <div class="mono tiny dim" id="chordBar"></div>
+      </div>
+      <div class="chordcard">
+        <div class="chordnow" id="chordNow">&mdash;</div>
+        <div class="tones" id="chordTones"></div>
+        <div class="nextchord"><span class="legend">Next</span><b id="chordNext">&mdash;</b></div>
+      </div>
+      <div class="barpips" id="barPips"></div>
+      <div class="tiny dim" id="chordHint">Press Play. The notes of each chord get a green ring on the fretboard below &mdash; aim to land on one as each new bar starts.</div>
     </div>
 
     <!-- fretboard -->
@@ -239,10 +255,20 @@
     <div class="plate plate-pad stack">
       <div class="legend legend-amber">Songs in progress</div>
       <div id="songList"></div>
-      <div class="row">
-        <input type="text" id="songInput" placeholder="Song and artist" autocomplete="off">
-        <button class="btn" id="songAdd">Add</button>
+      <div class="legend" style="margin-top:6px">Add a song</div>
+      <div class="songgrid">
+        <label class="full"><span class="sr-only">Song</span>
+          <input type="text" id="songInput" placeholder="Song" autocomplete="off" autocapitalize="words">
+        </label>
+        <label><span class="sr-only">Band or artist</span>
+          <input type="text" id="songArtist" placeholder="Band or artist" autocomplete="off" autocapitalize="words">
+        </label>
+        <label><span class="sr-only">Tempo in BPM</span>
+          <input type="number" id="songBpm" placeholder="BPM" min="40" max="220" inputmode="numeric">
+        </label>
+        <button class="btn full" id="songAdd">Add song</button>
       </div>
+      <div class="tiny dim" id="songErr" hidden></div>
       <div class="note">Woodshed rotates these into the last block of a session and remembers which ones still need work.</div>
       <button class="btn quiet wide" data-go="home">Back</button>
     </div>

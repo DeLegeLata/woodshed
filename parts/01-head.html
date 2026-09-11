@@ -268,5 +268,50 @@ label.field > span{display:block;margin-bottom:6px}
 }
 .nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:4px}
 .note{border-left:2px solid var(--amber-2);padding:2px 0 2px 12px;color:var(--cream-2);font-size:13.5px}
+/* ---------- live chord readout ---------- */
+.chordcard{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}
+.chordnow{font-family:var(--f-legend);font-weight:700;font-size:46px;line-height:.9;color:var(--amber);min-width:2.6ch;white-space:nowrap}
+.tones{display:flex;gap:6px;flex-wrap:wrap}
+.tone{display:flex;flex-direction:column;align-items:center;min-width:36px;padding:4px 6px;border:1px solid #3f6a48;border-radius:6px;background:rgba(127,180,137,.08)}
+.tone b{font-family:var(--f-legend);font-size:18px;font-weight:600;color:var(--cream);line-height:1.1}
+.tone span{font-family:var(--f-mono);font-size:10px;color:var(--go)}
+.tone.root{border-color:var(--amber-2);background:rgba(255,157,47,.12)}
+.tone.root span{color:var(--amber)}
+.nextchord{text-align:right}
+.nextchord b{display:block;font-family:var(--f-legend);font-size:24px;font-weight:600;color:var(--cream-2);line-height:1.1;white-space:nowrap}
+.barpips{display:flex;gap:4px}
+.barpips i{flex:1;height:5px;border-radius:2px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.06)}
+.barpips i.on{background:var(--amber);border-color:#ffcb84}
+@media (max-width:420px){ .chordcard{grid-template-columns:auto 1fr} .nextchord{grid-column:1 / -1;text-align:left;display:flex;gap:8px;align-items:baseline} .nextchord b{display:inline} }
+
+/* ---------- step lists and theory ---------- */
+.steps{margin:0;padding-left:1.4em;display:flex;flex-direction:column;gap:7px;color:#d6c9b1;max-width:62ch}
+.steps li::marker{font-family:var(--f-legend);font-weight:600;color:var(--amber-2)}
+.theory{display:flex;flex-direction:column;gap:4px}
+.theory h3{margin:14px 0 4px;font-size:13px;color:var(--amber-2)}
+.theory h3:first-child{margin-top:0}
+.theory p{color:#d6c9b1;max-width:62ch}
+.theory b{color:var(--cream);font-weight:700}
+.cmpwrap{overflow-x:auto;margin:6px 0 4px}
+.cmp{display:grid;grid-template-columns:max-content repeat(7,minmax(34px,1fr));gap:4px;min-width:340px}
+.cmp .lab{font-family:var(--f-legend);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-3);align-self:center;padding-right:8px;white-space:nowrap}
+.cmp span{font-family:var(--f-legend);font-size:15px;text-align:center;padding:5px 0;border-radius:5px;background:rgba(0,0,0,.28);color:var(--cream-2)}
+.cmp span.home{color:var(--cream);font-weight:700}
+.cmp span.diff{background:rgba(255,157,47,.2);color:var(--amber);font-weight:700;box-shadow:inset 0 0 0 1px var(--amber-2)}
+.cmp .deg{background:none;font-family:var(--f-mono);font-size:10px;color:var(--cream-3);padding:0}
+details.more{border:1px solid var(--edge);border-radius:8px;padding:10px 12px;background:rgba(0,0,0,.18)}
+details.more summary{cursor:pointer;font-family:var(--f-legend);text-transform:uppercase;letter-spacing:.12em;font-size:13px;color:var(--cream-2);list-style:none;min-height:28px;display:flex;align-items:center}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::before{content:"+";color:var(--amber);margin-right:10px;font-size:18px;width:12px}
+details.more[open] summary::before{content:"\2212"}
+details.more[open] summary{margin-bottom:10px}
+.songgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.songgrid .full{grid-column:1 / -1}
+.songgrid label{display:block}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.chartline{font-family:var(--f-legend);font-size:18px;letter-spacing:.04em;color:var(--cream);overflow-x:auto;white-space:nowrap;padding:6px 0}
+.chartline span{padding:2px 6px;border-radius:4px}
+.chartline span.now{background:rgba(255,157,47,.2);color:var(--amber)}
+.chartline i{font-style:normal;color:var(--cream-3);padding:0 2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
