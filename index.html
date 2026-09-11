@@ -307,9 +307,10 @@ label.field > span{display:block;margin-bottom:6px}
 .theory p{color:#d6c9b1;max-width:62ch}
 .theory b{color:var(--cream);font-weight:700}
 .cmpwrap{overflow-x:auto;margin:6px 0 4px}
-.cmp{display:grid;grid-template-columns:max-content repeat(7,minmax(34px,1fr));gap:4px;min-width:340px}
-.cmp .lab{font-family:var(--f-legend);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-3);align-self:center;padding-right:8px;white-space:nowrap}
-.cmp span{font-family:var(--f-legend);font-size:15px;text-align:center;padding:5px 0;border-radius:5px;background:rgba(0,0,0,.28);color:var(--cream-2)}
+/* sized so all seven notes fit a 375px phone — the characteristic note is often the last column */
+.cmp{display:grid;grid-template-columns:max-content repeat(7,minmax(26px,1fr));gap:3px}
+.cmp .lab{font-family:var(--f-legend);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-3);align-self:center;padding-right:6px;white-space:nowrap}
+.cmp span{font-family:var(--f-legend);font-size:15px;text-align:center;padding:5px 0;border-radius:5px;background:rgba(0,0,0,.28);color:var(--cream-2);white-space:nowrap}
 .cmp span.home{color:var(--cream);font-weight:700}
 .cmp span.diff{background:rgba(255,157,47,.2);color:var(--amber);font-weight:700;box-shadow:inset 0 0 0 1px var(--amber-2)}
 .cmp .deg{background:none;font-family:var(--f-mono);font-size:10px;color:var(--cream-3);padding:0}
