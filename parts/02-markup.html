@@ -39,6 +39,8 @@
       <button class="btn quiet" data-go="tuner">Tuner</button>
       <button class="btn quiet" data-go="jam">Free jam</button>
       <button class="btn quiet" data-go="songs">Songs</button>
+      <button class="btn quiet" data-go="chords">Chords &amp; rhythm</button>
+      <button class="btn quiet" data-go="runs">Speed runs</button>
       <button class="btn quiet" data-go="stats">Progress</button>
       <button class="btn quiet" data-go="settings">Settings</button>
     </div>
@@ -96,6 +98,13 @@
       <ol class="steps" id="blockSteps" hidden></ol>
     </div>
 
+    <!-- strumming / fingerpicking / chord-change drill -->
+    <div class="plate plate-pad stack" id="rhythmCard" hidden style="margin-bottom:14px">
+      <div class="legend legend-amber" id="rhythmCardLbl"></div>
+      <div id="rhythmCardBody" class="stack"></div>
+      <div class="note" id="rhythmCardTip"></div>
+    </div>
+
     <!-- theory card: fully open the first time you meet a mode, one tap away after that -->
     <div class="plate plate-pad stack" id="lessonCard" hidden style="margin-bottom:14px">
       <div class="legend legend-amber" id="lessonEyebrow">New tonight</div>
@@ -116,7 +125,7 @@
         <div class="nextchord"><span class="legend">Next</span><b id="chordNext">&mdash;</b></div>
       </div>
       <div class="barpips" id="barPips"></div>
-      <div class="tiny dim" id="chordHint">Press Play. The notes of each chord get a green ring on the fretboard below &mdash; aim to land on one as each new bar starts.</div>
+      <div class="tiny dim" id="chordHint">Press Play. Each chord lights up on the fretboard below &mdash; green for its 3rd and 7th, amber for its root. Aim to land on green as each new bar starts.</div>
     </div>
 
     <!-- fretboard -->
@@ -129,11 +138,34 @@
         </div>
       </div>
       <div class="fretwrap" id="fretWrap"></div>
+      <div class="fretkey" id="fretKey" hidden></div>
       <div class="rotate-hint show">Turn your phone sideways for a full-width neck.</div>
       <div class="row">
         <button class="btn quiet" id="guideBtn" style="flex:1">Guide me through it</button>
         <button class="btn quiet" id="listenBtn" style="flex:1">Hear it</button>
       </div>
+      <button class="btn quiet wide" id="tonesBtn" hidden>Light up chord tones</button>
+    </div>
+
+    <!-- speed run tab -->
+    <div class="plate plate-pad stack" id="runCard" hidden style="margin-bottom:14px">
+      <div class="row" style="align-items:center">
+        <div class="legend legend-amber" id="runCardWho" style="flex:1"></div>
+        <span class="chip" id="runCardNpb"></span>
+      </div>
+      <pre class="tab" id="runCardTab"></pre>
+      <div class="note" id="runCardTip"></div>
+    </div>
+
+    <!-- chord-tone targets -->
+    <div class="plate plate-pad stack" id="targetCard" hidden style="margin-bottom:14px">
+      <div class="row" style="align-items:center">
+        <div class="legend legend-amber" style="flex:1">Where to land</div>
+        <span class="chip" id="targetFollow"></span>
+      </div>
+      <div class="tgt-now" id="targetNow"></div>
+      <div class="stack-sm" id="targetList"></div>
+      <div class="tiny dim">Green = the 3rd and 7th. They spell the chord, so land on them when the chord changes. Root and 5th are always safe. A dashed red note is tension: it sounds great if you move down a half step to the chord tone right after.</div>
     </div>
 
     <!-- quiz -->
@@ -225,6 +257,7 @@
     <div class="plate plate-pad stack">
       <div class="legend legend-amber">Free jam</div>
       <h2 style="margin-top:-4px">No plan, no clock</h2>
+      <div class="note" id="jamSong" hidden></div>
       <div class="row" style="align-items:center">
         <div class="legend" style="flex:1">Tempo</div>
         <div class="mono" id="jamBpmReadout">100 BPM</div>
@@ -245,9 +278,103 @@
         <button data-mode="band" aria-pressed="true">Band</button>
       </div>
       <div class="fretwrap" id="jamFret"></div>
+      <div class="fretkey" id="jamFretKey" hidden></div>
+      <div class="stack-sm" id="jamTargets"></div>
+      <button class="btn quiet wide" id="jamTonesBtn">Chord tones: on</button>
       <button class="btn primary wide" id="jamPlay">Play</button>
       <button class="btn quiet wide" data-go="home">Back</button>
     </div>
+  </section>
+
+  <!-- ============ CHORDS & RHYTHM ============ -->
+  <section id="scr-chords" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Chords &amp; rhythm</div>
+      <h2 style="margin-top:-4px" id="chHead">Strumming</h2>
+      <div class="seg" id="chTabs">
+        <button data-tab="strum" aria-pressed="true">Strum</button>
+        <button data-tab="changes" aria-pressed="false">Changes</button>
+        <button data-tab="build" aria-pressed="false">Theory</button>
+        <button data-tab="pick" aria-pressed="false">Picking</button>
+      </div>
+      <div class="prose tiny" id="chIntro"></div>
+    </div>
+
+    <!-- strum + picking share one practice panel -->
+    <div id="chDrillWrap" class="stack">
+      <div class="plate plate-pad stack">
+        <div class="blocklist" id="chList"></div>
+        <label class="field" style="margin:0"><span class="legend">Chords to play it over</span><select id="chProg"></select></label>
+      </div>
+      <div class="plate plate-pad stack">
+        <div class="row" style="align-items:center;gap:8px">
+          <div class="legend" id="chLabel" style="flex:1"></div>
+          <span class="chip" id="chLevel"></span>
+        </div>
+        <h2 id="chName"></h2>
+        <div class="prose tiny" id="chHow"></div>
+        <div id="chDrill" class="stack"></div>
+        <div class="note" id="chTip"></div>
+        <div class="row" style="align-items:center">
+          <div class="legend" style="flex:1">Tempo</div>
+          <div class="mono" id="chBpmReadout">70 BPM</div>
+        </div>
+        <input type="range" id="chBpm" min="40" max="220" step="1" value="70" aria-label="Drill tempo">
+        <div class="row wrap">
+          <button class="btn quiet" id="chDown">&minus;5</button>
+          <button class="btn quiet" id="chUp">+5</button>
+        </div>
+        <div class="seg" id="chBacking">
+          <button data-mode="click" aria-pressed="false">Click</button>
+          <button data-mode="drums" aria-pressed="true">Drums</button>
+        </div>
+        <button class="btn primary wide" id="chPlay">Play</button>
+        <div class="legend" style="margin-top:4px">Log a rep at this tempo</div>
+        <div class="rate" id="chRate">
+          <button data-rate="3"><span class="e">&#9679;&#9679;&#9679;</span><span class="t">Nailed it</span></button>
+          <button data-rate="2"><span class="e">&#9679;&#9679;</span><span class="t">Okay</span></button>
+          <button data-rate="1"><span class="e">&#9679;</span><span class="t">Struggled</span></button>
+        </div>
+        <div class="tiny dim mono" id="chStatus"></div>
+      </div>
+    </div>
+
+    <div id="chChanges" class="stack" hidden>
+      <div class="plate plate-pad stack">
+        <div class="blocklist" id="chPairs"></div>
+      </div>
+      <div class="plate plate-pad stack" id="chChangeDrill"></div>
+    </div>
+
+    <div id="chBuild" class="stack" hidden>
+      <div class="plate plate-pad stack">
+        <div class="legend legend-amber">Chord builder</div>
+        <div class="grid2">
+          <label class="field" style="margin:0"><span class="legend">Root</span><select id="bRoot"></select></label>
+          <label class="field" style="margin:0"><span class="legend">Type</span><select id="bQual"></select></label>
+        </div>
+        <div id="bOut" class="stack"></div>
+      </div>
+      <div class="plate plate-pad stack">
+        <div class="legend legend-amber">Chords in a key</div>
+        <div class="prose tiny">Stack thirds on each note of a major scale and you get the seven chords that belong to that key. This is why G, C, D and Em sound right together. Tap a chord to open it in the builder.</div>
+        <label class="field" style="margin:0"><span class="legend">Key</span><select id="bKey"></select></label>
+        <div class="keygrid" id="bKeyGrid"></div>
+      </div>
+      <div class="plate plate-pad stack">
+        <div class="legend legend-amber">Chord theory, in order</div>
+        <div id="bLessons"></div>
+      </div>
+      <div class="plate plate-pad stack">
+        <div class="legend legend-amber" id="bQuizCount">Quick quiz</div>
+        <h2 id="bQuizQ"></h2>
+        <div class="quizopts" id="bQuizOpts"></div>
+        <div class="prose tiny" id="bQuizWhy" hidden></div>
+        <button class="btn quiet wide" id="bQuizNext">Another question</button>
+      </div>
+    </div>
+
+    <button class="btn quiet wide" data-go="home">Back</button>
   </section>
 
   <!-- ============ SONGS ============ -->
@@ -270,8 +397,73 @@
       </div>
       <div class="tiny dim" id="songErr" hidden></div>
       <div class="note">Woodshed rotates these into the last block of a session and remembers which ones still need work.</div>
-      <button class="btn quiet wide" data-go="home">Back</button>
     </div>
+
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Classics every guitarist should know</div>
+      <div class="seg" id="libLevel">
+        <button data-lv="0" aria-pressed="true">All</button>
+        <button data-lv="1" aria-pressed="false">Beginner</button>
+        <button data-lv="2" aria-pressed="false">Middle</button>
+        <button data-lv="3" aria-pressed="false">Advanced</button>
+      </div>
+      <input type="text" id="libSearch" placeholder="Search a song, artist or technique" autocomplete="off">
+      <div class="libcount" id="libCount"></div>
+      <div id="libList"></div>
+      <div class="note">The chord charts are simplified so you can jam over them, one chord per bar. They show how each song moves but aren't note-for-note transcriptions. Tap "Jam the changes" and the band plays them while the fretboard lights up the notes to land on.</div>
+    </div>
+    <button class="btn quiet wide" data-go="home">Back</button>
+  </section>
+
+  <!-- ============ SPEED RUNS ============ -->
+  <section id="scr-runs" class="stack" hidden>
+    <div class="plate plate-pad stack">
+      <div class="legend legend-amber">Speed runs</div>
+      <h2 style="margin-top:-4px">Fast pentatonic, Eric Johnson &amp; Bonamassa style</h2>
+      <div class="prose tiny">
+        <p>Speed comes from repeating small cells cleanly, not from forcing long runs. Every pattern here has its own working tempo. It starts slow, and each rep you log moves it: <em>Nailed it</em> pushes it up, <em>Struggled</em> pulls it back. Woodshed finds your speed for you.</p>
+        <p>Tempo is the click. Each click is one group, so the fretboard (with Guide on) lights up the notes that belong to that beat.</p>
+      </div>
+      <div class="grid2">
+        <label class="field"><span class="legend">Key</span><select id="runKey"></select></label>
+        <label class="field"><span class="legend">Pentatonic</span>
+          <select id="runQual"><option value="minor">Minor</option><option value="major">Major</option></select>
+        </label>
+      </div>
+      <div class="blocklist" id="runList"></div>
+    </div>
+
+    <div class="plate plate-pad stack">
+      <div class="row" style="align-items:center;gap:8px">
+        <div class="legend" id="runLabel" style="flex:1"></div>
+        <span class="chip amber" id="runWho"></span>
+      </div>
+      <h2 id="runName"></h2>
+      <div class="prose tiny" id="runHow"></div>
+      <div class="fretwrap" id="runFret"></div>
+      <pre class="tab" id="runTab"></pre>
+      <div class="note" id="runTip"></div>
+      <div class="row" style="align-items:center">
+        <div class="legend" style="flex:1">Tempo</div>
+        <div class="mono" id="runBpmReadout">60 BPM</div>
+      </div>
+      <input type="range" id="runBpm" min="40" max="220" step="1" value="60" aria-label="Run tempo">
+      <div class="row wrap">
+        <button class="btn quiet" id="runDown">&minus;5</button>
+        <button class="btn quiet" id="runUp">+5</button>
+        <button class="btn quiet" id="runGuide">Guide me</button>
+        <button class="btn quiet" id="runHear">Hear it</button>
+      </div>
+      <button class="btn primary wide" id="runPlay">Play click</button>
+      <div class="legend" style="margin-top:4px">Log a rep at this tempo</div>
+      <div class="rate" id="runRate">
+        <button data-rate="3"><span class="e">&#9679;&#9679;&#9679;</span><span class="t">Nailed it</span></button>
+        <button data-rate="2"><span class="e">&#9679;&#9679;</span><span class="t">Okay</span></button>
+        <button data-rate="1"><span class="e">&#9679;</span><span class="t">Struggled</span></button>
+      </div>
+      <div class="tiny dim mono" id="runStatus"></div>
+    </div>
+    <button class="btn quiet wide" data-go="home">Back</button>
   </section>
 
   <!-- ============ STATS ============ -->

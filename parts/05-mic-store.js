@@ -154,7 +154,13 @@ const Store = (function(){
     days: {},                       // "2026-09-09": minutes
     sessions: [],
     modes: {},                      // dorian: { level, keysDone:[], bestBpm, lastSeen }
-    songs: [],
+    songs: [],                      // { name, reps, classicId? }
+    runs: {},                       // page6: { bpm, best, reps, last }
+    runPrefs: {},
+    strums: {},                     // strumming pattern tempos
+    picks: {},                      // fingerpicking pattern tempos
+    changes: {},                    // "G|C": { best, tries:[{date,n}] }
+    theory: { done:[] },            // chord lessons marked learned
     labelMode: "deg"
   };
   let data = null;
@@ -166,6 +172,9 @@ const Store = (function(){
       data = raw ? Object.assign({}, DEFAULTS, JSON.parse(raw)) : JSON.parse(JSON.stringify(DEFAULTS));
       data.settings = Object.assign({}, DEFAULTS.settings, data.settings||{});
       data.streak   = Object.assign({}, DEFAULTS.streak, data.streak||{});
+      ["songs","runs","runPrefs","strums","picks","changes","theory","modes","days","sessions"].forEach(k => {
+        if(data[k] === DEFAULTS[k]) data[k] = JSON.parse(JSON.stringify(DEFAULTS[k]));
+      });
     }catch(e){
       data = JSON.parse(JSON.stringify(DEFAULTS));
     }
@@ -234,16 +243,39 @@ const Store = (function(){
     if(!d.modes[id]) d.modes[id] = { level:0, keysDone:[], bestBpm:0, lastSeen:null, reps:0 };
     return d.modes[id];
   }
+  /* Per-drill working tempo, shared by speed runs, strumming and fingerpicking. */
+  function tempoState(bucket, id, start){
+    const d = load();
+    if(!d[bucket]) d[bucket] = {};
+    if(!d[bucket][id]) d[bucket][id] = { bpm: start || 60, best:0, reps:0, last:null };
+    return d[bucket][id];
+  }
+  function runState(id){ const def = RUN_BY_ID[id]; return tempoState("runs", id, def ? def.start : 56); }
+  function logRun(id, rate, playedBpm){ const def = RUN_BY_ID[id]; return logTempo("runs", id, rate, playedBpm, def ? def.start : 56); }
+  /* The app finds your speed: every logged rep nudges the working tempo. */
+  function logTempo(bucket, id, rate, playedBpm, start){
+    const st = tempoState(bucket, id, start), played = playedBpm || st.bpm;
+    // only playing at (or near) the working tempo counts as evidence to move it up
+    if(rate >= 3)      st.bpm = played >= st.bpm - 2 ? played + 4 : st.bpm + 1;
+    else if(rate == 2) st.bpm = played >= st.bpm ? played + 1 : st.bpm;
+    else               st.bpm = Math.min(st.bpm, played) - 4;
+    st.bpm = Math.max(40, Math.min(220, Math.round(st.bpm)));
+    if(rate >= 2) st.best = Math.max(st.best||0, played);
+    st.reps = (st.reps||0) + 1;
+    st.last = today();
+    save();
+    return st;
+  }
   function exportJSON(){ return JSON.stringify(load(), null, 2); }
   function importJSON(txt){
     const parsed = JSON.parse(txt);
-    data = Object.assign({}, DEFAULTS, parsed);
+    data = Object.assign({}, JSON.parse(JSON.stringify(DEFAULTS)), parsed);
     save(); return true;
   }
   function reset(){ data = JSON.parse(JSON.stringify(DEFAULTS)); save(); }
 
   return { load, save, today, dayKey, recordSession, currentStreak, weekMinutes,
-           totalMinutes, modeState, exportJSON, importJSON, reset };
+           totalMinutes, modeState, runState, logRun, tempoState, logTempo, exportJSON, importJSON, reset };
 })();
 
 /* ---------- recordings live in IndexedDB (blobs don't fit in localStorage) ---------- */

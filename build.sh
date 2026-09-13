@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-BODY="parts/02-markup.html parts/03-theory.js parts/04-audio.js parts/05-mic-store.js parts/06-app.js"
+BODY="parts/02-markup.html parts/03-theory.js parts/04-audio.js parts/05-mic-store.js parts/05b-chords.js parts/06-app.js"
 
 {
   cat parts/00-site-head.html parts/01-head.html

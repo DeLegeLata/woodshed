@@ -2,7 +2,7 @@
    Two jobs: make the app installable, and let it work with no signal.
    Deliberately small — anything clever here would be a thing that can break offline. */
 
-const CACHE = "woodshed-v1";
+const CACHE = "woodshed-v2";
 const SHELL = [
   "./",
   "./index.html",

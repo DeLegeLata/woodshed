@@ -21,7 +21,7 @@ function mmss(sec){
 }
 
 /* ---------- routing ---------- */
-const SCREENS = ["home","plan","tuner","block","blockend","done","jam","songs","stats","settings"];
+const SCREENS = ["home","plan","tuner","block","blockend","done","jam","songs","runs","chords","stats","settings"];
 let screen = "home";
 function go(name){
   screen = name;
@@ -31,8 +31,11 @@ function go(name){
   if(name === "stats")    renderStats();
   if(name === "songs")    renderSongs();
   if(name === "settings") renderSettings();
-  if(name === "jam")      renderJam();
   if(name !== "block" && name !== "jam"){ Audio2.stop(); Audio2.drone(0,false); setPlayLabel(); }
+  if(name === "jam")      renderJam();
+  if(name === "runs")     renderRuns();
+  if(name === "chords")   renderChords();
+  if(name !== "chords" && name !== "block" && RH.changeIv){ clearInterval(RH.changeIv); RH.changeIv = null; }
 }
 
 /* ---------- drill content ---------- */
@@ -174,12 +177,31 @@ function nextTarget(){
 
 /* ---------- session generator ---------- */
 const ARCHETYPES = [
-  { id:"balanced",  parts:[["warmup",.18],["mode",.32],["improv",.30],["song",.20]] },
-  { id:"technique", parts:[["warmup",.18],["technique",.30],["mode",.28],["song",.24]] },
-  { id:"improv",    parts:[["warmup",.15],["mode",.22],["improv",.43],["song",.20]] },
-  { id:"theory",    parts:[["quiz",.15],["mode",.35],["improv",.30],["song",.20]] },
-  { id:"rhythm",    parts:[["warmup",.15],["rhythm",.35],["improv",.30],["song",.20]] }
+  { id:"balanced",  w:1, parts:[["warmup",.18],["mode",.32],["improv",.30],["song",.20]] },
+  { id:"technique", w:1, parts:[["warmup",.18],["technique",.30],["mode",.28],["song",.24]] },
+  { id:"improv",    w:1, parts:[["warmup",.15],["mode",.22],["improv",.43],["song",.20]] },
+  { id:"theory",    w:1, parts:[["quiz",.15],["mode",.35],["improv",.30],["song",.20]] },
+  { id:"rhythm",    w:.6, parts:[["warmup",.15],["rhythm",.35],["improv",.30],["song",.20]] },
+  { id:"speed",     w:2, parts:[["warmup",.15],["runs",.35],["improv",.30],["song",.20]] },
+  { id:"strumming", w:1.5, parts:[["changes",.15],["strum",.40],["improv",.20],["song",.25]] },
+  { id:"picking",   w:1, parts:[["warmup",.12],["pick",.40],["mode",.23],["song",.25]] }
 ];
+function pickWeighted(arr){
+  const total = arr.reduce((a,x)=>a+(x.w||1),0);
+  let r = Math.random()*total;
+  for(const x of arr){ r -= (x.w||1); if(r < 0) return x; }
+  return arr[0];
+}
+/* Level 2 opens once any level-1 run has 3 reps; level 3 likewise. Least-practised first. */
+function pickRun(){
+  const d = Store.load();
+  const repsAt = lv => RUNS.filter(r => r.level === lv).some(r => (d.runs[r.id] && d.runs[r.id].reps >= 3));
+  const maxLv = repsAt(2) ? 3 : repsAt(1) ? 2 : 1;
+  const pool = shuffle(RUNS.filter(r => r.level <= maxLv));
+  pool.sort((a,b) => ((d.runs[a.id]||{}).reps||0) - ((d.runs[b.id]||{}).reps||0));
+  return pool[0];
+}
+function pentQualityFor(modeId){ return (modeId === "ionian" || modeId === "lydian") ? "major" : "minor"; }
 
 function buildSession(minutes){
   const target = nextTarget();
@@ -190,7 +212,7 @@ function buildSession(minutes){
   if(minutes <= 10){
     parts = [["mode",.55],["improv",.45]];
   } else {
-    let arch = pick(ARCHETYPES);
+    let arch = pickWeighted(ARCHETYPES);
     if(target.isNew && arch.id === "improv") arch = ARCHETYPES[0]; // learn it before you jam on it
     parts = arch.parts.slice();
   }
@@ -214,10 +236,11 @@ function buildSession(minutes){
   const chart = parseChart(modalVamp(target.keyPc, target.mode.id).join(" | "));
   const d = Store.load();
   const song = d.songs.length ? d.songs.slice().sort((a,b)=>(a.reps||0)-(b.reps||0))[0] : null;
+  const scalePcs = target.mode.formula.map(i => (target.keyPc + i) % 12);
 
   const blocks = parts.map((p, idx) => {
     const kind = p[0], m = mins[idx];
-    const b = { kind, minutes:m, target, shape, keyName, groove, chart };
+    const b = { kind, minutes:m, target, shape, keyName, groove, chart, scalePcs, spellPc: target.keyPc };
     switch(kind){
       case "warmup": {
         const w = pick(WARMUPS);
@@ -250,7 +273,7 @@ function buildSession(minutes){
         b.backing = "click"; b.bpm = Math.max(60, baseBpm - 10);
         b.showFret = true; b.drone = true; b.listen = true;
         b.theory = true;
-        b.lesson = target.isNew;
+        b.lesson = target.isNew; b.targets = true;
         break;
       case "rhythm": {
         const r = pick(RHYTHMS);
@@ -265,20 +288,58 @@ function buildSession(minutes){
         b.brief = pick(IMPROVS);
         b.steps = [
           "Press Play. The band card shows the chord sounding right now and the one coming next.",
-          "Its notes get a green ring on the fretboard — those are the safest notes to land on.",
-          "Aim to hit a ringed note on the first beat of each new bar. Move through the rest freely.",
+          "Its notes light up on the fretboard: green for the 3rd and 7th, amber for the root. Those are the notes to land on.",
+          "Aim to hit a green note on the first beat of each new bar. The Where to land card spells out every chord.",
           "Then find the characteristic note and land on it on purpose. That's when the mode appears."
         ];
         b.backing = "band"; b.bpm = Math.max(70, baseBpm);
-        b.showFret = true; b.band = true; b.theory = true;
+        b.showFret = true; b.band = true; b.theory = true; b.targets = true; b.tonesDefault = true;
         break;
+      case "runs": {
+        const r = pickRun(), st = Store.runState(r.id);
+        const q = pentQualityFor(target.mode.id);
+        const rs = pentaShape(target.keyPc, q, r.shape === "wide");
+        b.title = r.name;
+        b.brief = r.how + " Tempo climbs 3 BPM every two bars. When it gets messy, knock it back 10 and build up again.";
+        b.run = { def:r, seq:r.gen(rs.notes.length), quality:q };
+        b.shape = rs;
+        b.scalePcs = pentaPcs(target.keyPc, q);
+        b.fretLabel = keyName + " " + q + " pentatonic · " + r.who;
+        b.backing = "click"; b.bpm = st.bpm;
+        b.ramp = { every:2, step:3, target: st.bpm + 18 };
+        b.showFret = true; b.listen = true;
+        break;
+      }
+      case "strum":
+      case "pick": {
+        const isStrum = kind === "strum";
+        const pat = pickByReps(isStrum ? STRUMS : PICKS, isStrum ? "strums" : "picks");
+        const prog = pickProg(pat.level);
+        const pst = Store.tempoState(isStrum ? "strums" : "picks", pat.id, pat.start);
+        b.title = pat.name;
+        b.brief = pat.how + " Over " + prog.name + ". Rate it at the end and the tempo adjusts for next time.";
+        b.backing = isStrum ? "drums" : "click";
+        b.groove = pat.groove || "rock";
+        b.bpm = pst.bpm;
+        b.chart = [];
+        b.drill = { type: kind, pat, prog, where:"block" };
+        break;
+      }
+      case "changes": {
+        const pair = pickPair();
+        b.title = "One-minute changes: " + pair.a + " ⇄ " + pair.b;
+        b.brief = "Switch between the two chords as many times as you can in a minute, one strum each. Count only clean arrivals. Do a few rounds and try to beat your first.";
+        b.backing = "off"; b.chart = [];
+        b.changes = pair;
+        break;
+      }
       case "quiz":
         b.title = "Quick theory";
         b.brief = "No guitar for a minute.";
         b.backing = "off";
         b.quiz = true;
         break;
-      case "song":
+      case "song": {
         if(song){
           b.title = song.name + (song.artist ? " — " + song.artist : "");
           b.brief = "Work the part that isn't working, then play it through once for fun.";
@@ -295,7 +356,20 @@ function buildSession(minutes){
           b.backing = "off"; b.bpm = 100;
         }
         b.song = song;
+        const c = song && song.classicId ? CLASSIC_BY_ID[song.classicId] : null;
+        if(c){
+          const kpc = classicKeyPc(c), md = MODE_BY_ID[c.mode];
+          b.brief = c.teaches + ". " + c.tip + " Work the hard part first, then jam the changes with the band.";
+          b.backing = "band"; b.bpm = c.bpm; b.groove = c.groove;
+          b.chart = parseChart(c.chords);
+          b.shape = shape3nps(kpc, c.mode);
+          b.scalePcs = md.formula.map(i => (kpc + i) % 12);
+          b.spellPc = kpc;
+          b.fretLabel = noteName(kpc,kpc) + " " + md.name + " · the scale for this song";
+          b.showFret = true; b.targets = true; b.tonesDefault = true;
+        }
         break;
+      }
     }
     return b;
   });
@@ -420,8 +494,22 @@ function enterBlock(){
 
   $("#blockKind").textContent = ({
     warmup:"Warm up", technique:"Technique", mode:"Mode of the day",
-    rhythm:"Rhythm", improv:"Improvise", quiz:"Theory", song:"Play a song"
+    rhythm:"Rhythm", improv:"Improvise", quiz:"Theory", song:"Play a song", runs:"Speed runs",
+    strum:"Strumming", pick:"Fingerpicking", changes:"Chord changes"
   })[b.kind] || b.kind;
+
+  // strumming / picking / changes
+  RH.active = null;
+  $("#rhythmCard").hidden = !(b.drill || b.changes);
+  if(b.drill){
+    $("#rhythmCardLbl").textContent = (b.drill.type === "strum" ? "Strum it" : "Pick it") + " · " + b.drill.prog.name;
+    mountDrill($("#rhythmCardBody"), b.drill);
+    $("#rhythmCardTip").textContent = b.drill.pat.tip;
+  } else if(b.changes){
+    $("#rhythmCardLbl").textContent = "Chord changes";
+    mountChanges($("#rhythmCardBody"), b.changes);
+    $("#rhythmCardTip").textContent = "Look ahead to the next shape and move all your fingers as one unit. Speed comes from not hesitating, not from rushing.";
+  }
   $("#blockTitle").textContent = b.title;
   $("#blockBrief").textContent = b.brief;
   $("#blockMeta").textContent = "Block " + (S.idx+1) + " of " + S.plan.blocks.length +
@@ -443,10 +531,27 @@ function enterBlock(){
 
   // fretboard
   $("#fretCard").hidden = !b.showFret;
+  S.chordIdx = 0;
+  S.showTones = !!b.tonesDefault;
   if(b.showFret){
-    $("#fretLabel").textContent = b.keyName + " " + b.target.mode.name + " · 3 notes per string";
+    $("#fretLabel").textContent = b.fretLabel || (b.keyName + " " + b.target.mode.name + " · 3 notes per string");
+    $("#tonesBtn").hidden = !!b.run || !(b.chart && b.chart.length);
+    setTonesLabel();
     drawFret();
   }
+
+  // speed-run tab
+  $("#runCard").hidden = !b.run;
+  if(b.run){
+    const r = b.run.def;
+    $("#runCardWho").textContent = r.who + " · " + LEVEL_NAME[r.level];
+    $("#runCardNpb").textContent = r.npb + " notes per click";
+    $("#runCardTab").textContent = runTab(b.shape, b.run.seq, r.npb);
+    $("#runCardTip").textContent = r.tip + " Each | in the tab is one click.";
+  }
+
+  // where to land
+  renderTargets();
 
   // quiz
   $("#quizCard").hidden = !b.quiz;
@@ -458,6 +563,7 @@ function enterBlock(){
   Audio2.setBpm(b.bpm || 100);
   Audio2.setChart(b.chart || []);
   Audio2.T.ramp = b.ramp || null;
+  Audio2.T.beatsPerBar = b.drill ? 4 : (Store.load().settings.sig || 4);
   syncBacking();
   $("#bpmSlider").value = Audio2.T.bpm;
   $("#bpmReadout").textContent = Audio2.T.bpm + " BPM";
@@ -511,28 +617,79 @@ function updateClock(){
 
 function drawFret(){
   const b = currentBlock(); if(!b || !b.shape) return;
-  const m = b.target.mode;
-  const charPc = (b.target.keyPc + m.formula[m.charIdx]) % 12;
-  const charName = noteName(charPc, parentMajorPc(b.target.keyPc, m.id));
-  $("#fretWrap").innerHTML = renderFretboard(b.shape, {
-    labelMode: S.labelMode,
-    highlight: S.guide ? S.guideStep % b.shape.notes.length : -1,
-    chordPcs: S.chord ? chordToneList(S.chord).map(x => x.pc) : null,
-    chordRootPc: S.chord ? S.chord.pc : -1,
-    charPc
-  });
+  const opts = { labelMode: S.labelMode };
   let lg = $("#fretLegend");
   if(!lg){
     lg = document.createElement("div");
     lg.id = "fretLegend"; lg.className = "tiny dim";
     $("#fretWrap").after(lg);
   }
-  lg.innerHTML =
-    '<span style="color:var(--amber)">&#9679;</span> ' + esc(b.keyName) + ' is home &nbsp;·&nbsp; ' +
-    '<span style="color:var(--amber)">&#9676;</span> dashed ring = ' + esc(charName) +
-    ', the note that makes it ' + esc(m.name) +
-    (S.chord ? ' &nbsp;·&nbsp; <span style="color:var(--go)">&#9711;</span> green ring = in the ' +
-      esc(S.chord.label) + ' chord right now' : '');
+  if(b.run){
+    if(S.guide) opts.highlightSet = runGroup(b.run, S.guideStep);
+    $("#fretWrap").innerHTML = renderFretboard(b.shape, opts);
+    $("#fretKey").hidden = true;
+    lg.innerHTML = "";
+    return;
+  }
+  opts.highlight = S.guide ? S.guideStep % b.shape.notes.length : -1;
+  // the chord to colour: whatever the band is playing, else the one picked on the Where to land card
+  const ch = S.chord || (S.showTones && b.chart && b.chart.length ? b.chart[S.chordIdx % b.chart.length] : null);
+  if(ch) opts.targets = targetMap(ch, b.scalePcs);
+  // the characteristic-note ring belongs to mode blocks, not to a song's own scale
+  const modeBlock = !(b.song && b.song.classicId);
+  const m = b.target.mode;
+  let charName = "";
+  if(modeBlock){
+    opts.charPc = (b.target.keyPc + m.formula[m.charIdx]) % 12;
+    charName = noteName(opts.charPc, parentMajorPc(b.target.keyPc, m.id));
+  }
+  $("#fretWrap").innerHTML = renderFretboard(b.shape, opts);
+  const key = $("#fretKey");
+  key.hidden = !opts.targets;
+  if(opts.targets && !key.innerHTML) key.innerHTML = FRETKEY_HTML;
+  lg.innerHTML = modeBlock
+    ? '<span style="color:var(--amber)">&#9679;</span> ' + esc(b.keyName) + ' is home &nbsp;·&nbsp; ' +
+      '<span style="color:var(--amber)">&#9676;</span> dashed ring = ' + esc(charName) +
+      ', the note that makes it ' + esc(m.name) +
+      (ch ? ' &nbsp;·&nbsp; colours show the ' + esc(ch.label) + ' chord' : '')
+    : (ch ? 'Colours show the ' + esc(ch.label) + ' chord' : '');
+}
+function setTonesLabel(){
+  $("#tonesBtn").textContent = S.showTones ? "Chord tones on — tap for the plain scale" : "Light up chord tones";
+  $("#tonesBtn").style.borderColor = S.showTones ? "#3f6a48" : "";
+  $("#tonesBtn").style.color = S.showTones ? "var(--go)" : "";
+}
+
+/* ---------- where to land ---------- */
+function renderTargets(){
+  const b = currentBlock(), card = $("#targetCard");
+  const show = !!(b && b.targets && b.chart && b.chart.length);
+  card.hidden = !show;
+  if(!show) return;
+  const ch = b.chart[S.chordIdx % b.chart.length];
+  const following = Audio2.T.mode === "band";
+  $("#targetFollow").textContent = following ? "Follows the band" : "Tap a chord";
+  $("#targetFollow").className = "chip" + (following ? " go" : "");
+  $("#targetNow").innerHTML = '<div class="ch">' + esc(ch.label) + '</div><div class="ln">' +
+    targetLineHTML(ch, b.spellPc, b.scalePcs) + '</div>';
+  const list = $("#targetList"); list.innerHTML = "";
+  uniqueChords(b.chart).forEach(u => {
+    const row = document.createElement("button");
+    row.className = "tgt-row" + (u.ch.label === ch.label ? " on" : "");
+    row.innerHTML = '<b>' + esc(u.ch.label) + '</b>' + targetLineHTML(u.ch, b.spellPc, b.scalePcs);
+    row.onclick = () => {
+      S.chordIdx = u.first;
+      if(!S.showTones){ S.showTones = true; setTonesLabel(); }
+      renderTargets(); drawFret();
+    };
+    list.appendChild(row);
+  });
+  if(!following){
+    const hint = document.createElement("div");
+    hint.className = "tiny dim";
+    hint.textContent = "Switch Backing to Band and this follows the chord changes as they're played.";
+    list.appendChild(hint);
+  }
 }
 
 /* ---------- theory card ----------
@@ -594,6 +751,13 @@ function renderTheory(b, open){
       '<p>Land on ' + esc(L.charNote) + ' over the ' + esc(L.homeChord) + ' and hold it — that’s the sound. ' +
         'If you never play that note, the mode never shows up, and everything just sounds like ' +
         esc(L.parentName) + ' major. That’s usually why modes “all sound the same”.</p>' +
+
+      '<h3>Which notes to lean on, chord by chord</h3>' +
+      '<p>The band loops these chords. When each one arrives, land on a green note — its 3rd or 7th. ' +
+        'Root and 5th are always safe. Tension notes sound great if you step down a half step straight after.</p>' +
+      '<div class="stack-sm">' + uniqueChords(b.chart).map(u =>
+        '<div class="tgt-row"><b>' + esc(u.ch.label) + '</b>' + targetLineHTML(u.ch, b.spellPc, b.scalePcs) + '</div>').join("") +
+      '</div>' +
 
       '<h3>You already know this sound</h3>' +
       '<p>' + m.songs.map(s => esc(s)).join("<br>") + '</p>' +
@@ -660,7 +824,7 @@ Audio2.T.onChord = function(ch, next, idx, total, t){
 let stopScoring = null;
 function startScoring(b){
   if(stopScoring) stopScoring();
-  const scalePcs = b.target.mode.formula.map(i => (b.target.keyPc + i) % 12);
+  const scalePcs = b.scalePcs || b.target.mode.formula.map(i => (b.target.keyPc + i) % 12);
   let lastNote = -99, lastAt = 0;
   stopScoring = Mic.on((hz, midi, stable) => {
     if(hz <= 0 || stable !== 3) return;           // one count per stable new note
@@ -692,6 +856,7 @@ function setPlayLabel(){
 
 Audio2.T.onBeat = function(t, beatInBar, isDown, counting, absBeat){
   S.lastBeatTime = t;
+  drillBeat(t, beatInBar, counting, absBeat);
   const delay = Math.max(0, (t - Audio2.now()) * 1000);
   setTimeout(() => {
     const lamp = $("#lamp");
@@ -701,6 +866,27 @@ Audio2.T.onBeat = function(t, beatInBar, isDown, counting, absBeat){
     if(S.guide && screen === "block" && !counting){
       S.guideStep++;
       drawFret();
+    }
+    if(R.guide && screen === "runs" && !counting){
+      R.step++;
+      drawRun();
+    }
+  }, delay);
+};
+/* chord changes: move the "where to land" guidance with the band */
+Audio2.T.onBar = function(t, bar){
+  const delay = Math.max(0, (t - Audio2.now()) * 1000);
+  setTimeout(() => {
+    if(!Audio2.T.playing || Audio2.T.mode !== "band") return;
+    if(screen === "block"){
+      const b = currentBlock();
+      if(!b || b.run || !b.chart || !b.chart.length) return;
+      S.chordIdx = bar % b.chart.length;
+      if(b.targets) renderTargets();
+      if(S.showTones) drawFret();
+    } else if(screen === "jam" && J.chords.length){
+      J.idx = bar % J.chords.length;
+      drawJam();
     }
   }, delay);
 };
@@ -750,6 +936,14 @@ function commitBlock(rate){
     if(b.ramp) st.bestBpm = Math.max(st.bestBpm||0, Audio2.T.bpm);
     else st.bestBpm = Math.max(st.bestBpm||0, b.bpm||0);
     Store.save();
+  }
+  if(b.kind === "runs" && b.run){
+    const st = Store.logRun(b.run.def.id, rate, Audio2.T.bpm);
+    toast(b.run.def.name + ": next time starts at " + st.bpm + " BPM.");
+  }
+  if(b.drill){
+    const st = Store.logTempo(b.drill.type === "strum" ? "strums" : "picks", b.drill.pat.id, rate, Audio2.T.bpm, b.drill.pat.start);
+    toast(b.drill.pat.name + ": next time starts at " + st.bpm + " BPM.");
   }
   if(b.kind === "song" && b.song){
     const d = Store.load();
@@ -932,7 +1126,7 @@ function renderPlan(plan){
     row.innerHTML = '<div class="mins">' + b.minutes + '</div>' +
       '<div><div class="t">' + esc(b.title) + '</div><div class="s">' + esc(b.brief) + '</div></div>' +
       '<span class="chip' + (b.lesson ? ' amber' : '') + '">' +
-        esc(b.lesson ? "New" : ({warmup:"Warm",technique:"Tech",mode:"Mode",rhythm:"Time",improv:"Solo",quiz:"Theory",song:"Song"})[b.kind] || b.kind) +
+        esc(b.lesson ? "New" : ({warmup:"Warm",technique:"Tech",mode:"Mode",rhythm:"Time",improv:"Solo",quiz:"Theory",song:"Song",runs:"Speed",strum:"Strum",pick:"Pick",changes:"Change"})[b.kind] || b.kind) +
       '</span>';
     list.appendChild(row);
   });
@@ -973,14 +1167,15 @@ function renderSongs(){
   $("#songBpm").onkeydown    = e => { if(e.key === "Enter") $("#songAdd").click(); };
 
   if(!d.songs.length){
-    el.innerHTML = '<div class="tiny dim">Nothing here yet. Add a song you\'re working on.</div>';
-    return;
+    el.innerHTML = '<div class="tiny dim">Nothing here yet. Add a song you\'re working on, or pick one from the classics below.</div>';
   }
   d.songs.forEach((s,i) => {
+    const c = s.classicId ? CLASSIC_BY_ID[s.classicId] : null;
     const row = document.createElement("div");
     row.className = "songrow";
     const meta = [
       s.artist || null,
+      c ? c.teaches : null,
       s.bpm ? s.bpm + " BPM" : "no BPM",
       s.reps ? s.reps + " session" + (s.reps > 1 ? "s" : "") : "not played yet"
     ].filter(Boolean).join(" · ");
@@ -995,6 +1190,12 @@ function renderSongs(){
       if(!v.ok){ toast("BPM needs to be a number from 40 to 220."); return; }
       s.bpm = v.bpm; Store.save(); renderSongs();
     };
+    if(c){
+      const jam = document.createElement("button");
+      jam.className = "btn quiet"; jam.textContent = "Jam";
+      jam.onclick = () => jamClassic(c);
+      row.appendChild(jam);
+    }
     const del = document.createElement("button");
     del.className = "btn quiet"; del.textContent = "Remove";
     del.onclick = () => { d.songs.splice(i,1); Store.save(); renderSongs(); };
@@ -1002,6 +1203,87 @@ function renderSongs(){
     row.appendChild(del);
     el.appendChild(row);
   });
+  renderLibrary();
+}
+
+/* ---------- classics library ---------- */
+let libLevel = 0, libOpen = null;
+function renderLibrary(){
+  const d = Store.load();
+  const q = ($("#libSearch").value || "").trim().toLowerCase();
+  const inRot = id => d.songs.some(s => s.classicId === id);
+  const list = CLASSICS.filter(c =>
+    (!libLevel || c.level === libLevel) &&
+    (!q || (c.name + " " + c.artist + " " + c.teaches + " " + c.style).toLowerCase().indexOf(q) !== -1));
+  $("#libCount").textContent = list.length + " of " + CLASSICS.length + " songs · " +
+    CLASSICS.filter(c => inRot(c.id)).length + " in your rotation";
+  const el = $("#libList"); el.innerHTML = "";
+  if(!list.length){ el.innerHTML = '<div class="tiny dim">Nothing matches that.</div>'; return; }
+  list.forEach(c => {
+    const open = libOpen === c.id, rot = inRot(c.id);
+    const head = document.createElement("button");
+    head.className = "songrow libhead";
+    head.setAttribute("aria-expanded", open ? "true" : "false");
+    if(open) head.style.borderBottom = "none";
+    head.innerHTML = '<div class="nm"><b>' + esc(c.name) + '</b><span>' + esc(c.artist) + " · " +
+      LEVEL_NAME[c.level] + " · " + esc(classicKeyLabel(c)) + '</span></div>' +
+      (rot ? '<span class="chip go">In rotation</span>' : '') +
+      '<span class="chev" aria-hidden="true">' + (open ? "&minus;" : "+") + '</span>';
+    head.onclick = () => { libOpen = open ? null : c.id; renderLibrary(); };
+    el.appendChild(head);
+    if(!open) return;
+
+    const card = document.createElement("div");
+    card.className = "libcard";
+    card.innerHTML =
+      '<div class="row wrap" style="gap:6px"><span class="chip amber">' + esc(c.teaches) + '</span>' +
+      '<span class="chip">' + esc(c.style) + '</span><span class="chip">' + c.bpm + ' BPM</span></div>' +
+      '<div class="prose tiny">' + esc(c.tip) + '</div>' +
+      '<div class="legend">Jam changes · ' + esc(noteName(classicKeyPc(c),classicKeyPc(c))) + " " + esc(MODE_BY_ID[c.mode].name) + '</div>' +
+      '<div class="chart">' + esc(c.chords) + '</div>';
+    const kpc = classicKeyPc(c), md = MODE_BY_ID[c.mode];
+    const scale = md.formula.map(i => (kpc + i) % 12);
+    const tl = document.createElement("div");
+    tl.className = "stack-sm";
+    uniqueChords(parseChart(c.chords)).slice(0,6).forEach(u => {
+      const r = document.createElement("div");
+      r.className = "tgt-row";
+      r.innerHTML = '<b>' + esc(u.ch.label) + '</b>' + targetLineHTML(u.ch, kpc, scale);
+      tl.appendChild(r);
+    });
+    card.appendChild(tl);
+    const btns = document.createElement("div");
+    btns.className = "row";
+    const add = document.createElement("button");
+    add.className = rot ? "btn quiet" : "btn";
+    add.style.flex = "1";
+    add.textContent = rot ? "Take out of rotation" : "Add to rotation";
+    add.onclick = () => {
+      if(rot){ d.songs = d.songs.filter(s => s.classicId !== c.id); toast("Taken out of your rotation."); }
+      else { d.songs.push({ name: c.name, artist: c.artist, bpm: c.bpm, reps:0, classicId:c.id }); toast("Added. It'll turn up in the song block."); }
+      Store.save(); renderSongs();
+    };
+    const jam = document.createElement("button");
+    jam.className = "btn primary"; jam.style.flex = "1";
+    jam.textContent = "Jam the changes";
+    jam.onclick = () => jamClassic(c);
+    btns.appendChild(add); btns.appendChild(jam);
+    card.appendChild(btns);
+    el.appendChild(card);
+  });
+}
+function jamClassic(c){
+  go("jam");
+  const kpc = classicKeyPc(c);
+  $("#jamKey").value = String(kpc);
+  $("#jamMode").value = c.mode;
+  $("#jamGroove").value = c.groove;
+  $("#jamChords").value = c.chords;
+  $("#jamBpm").value = c.bpm;
+  $$("#jamSeg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.mode === "band" ? "true" : "false"));
+  $("#jamSong").hidden = false;
+  $("#jamSong").textContent = c.name + " — " + c.artist + ". " + c.teaches + ". Press Play, and the neck shows what to land on as each chord comes round.";
+  applyJam();
 }
 
 function renderStats(){
@@ -1062,6 +1344,106 @@ function renderSettings(){
 
 /* ---------- free jam ---------- */
 let jamShape = null;
+const J = { chords:[], idx:0, keyPc:4, scalePcs:[], tones:true };
+function drawJam(){
+  if(!jamShape) return;
+  const ch = J.tones && J.chords.length ? J.chords[J.idx % J.chords.length] : null;
+  $("#jamFret").innerHTML = renderFretboard(jamShape, { labelMode: S.labelMode, targets: ch ? targetMap(ch, J.scalePcs) : null });
+  const key = $("#jamFretKey");
+  key.hidden = !ch;
+  if(ch && !key.innerHTML) key.innerHTML = FRETKEY_HTML;
+  const box = $("#jamTargets"); box.innerHTML = "";
+  if(!ch) return;
+  const now = document.createElement("div");
+  now.className = "tgt-row on";
+  now.innerHTML = '<b>' + esc(ch.label) + '</b>' + targetLineHTML(ch, J.keyPc, J.scalePcs);
+  box.appendChild(now);
+  if(J.chords.length > 1){
+    const nx = J.chords[(J.idx + 1) % J.chords.length];
+    const next = document.createElement("div");
+    next.className = "tgt-row";
+    next.innerHTML = '<span class="tgt-lbl">Next</span><b>' + esc(nx.label) + '</b>' + targetLineHTML(nx, J.keyPc, J.scalePcs);
+    box.appendChild(next);
+  }
+  if(!Audio2.T.playing || Audio2.T.mode !== "band"){
+    const hint = document.createElement("div");
+    hint.className = "tiny dim";
+    hint.textContent = "Press Play with Band selected, and this moves with each chord change.";
+    box.appendChild(hint);
+  }
+}
+
+/* ---------- speed runs drill ---------- */
+const R = { id:"up4", keyPc:9, qual:"minor", guide:false, step:0, shape:null, seq:null };
+function renderRuns(){
+  const kSel = $("#runKey");
+  if(!kSel.options.length){
+    KEY_ORDER.forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = noteName(k,k); kSel.appendChild(o); });
+    const p = Store.load().runPrefs || {};
+    kSel.value = String(p.keyPc != null ? p.keyPc : 9);
+    $("#runQual").value = p.qual || "minor";
+    if(p.id && RUN_BY_ID[p.id]) R.id = p.id;
+  }
+  R.guide = false; R.step = 0;
+  $("#runGuide").textContent = "Guide me";
+  $("#runPlay").textContent = "Play click";
+  applyRun(true);
+}
+function applyRun(resetTempo){
+  R.keyPc = parseInt($("#runKey").value, 10);
+  R.qual = $("#runQual").value;
+  const def = RUN_BY_ID[R.id];
+  R.shape = pentaShape(R.keyPc, R.qual, def.shape === "wide");
+  R.seq = def.gen(R.shape.notes.length);
+  R.step = 0;
+  const d = Store.load();
+  d.runPrefs = { id:R.id, keyPc:R.keyPc, qual:R.qual }; Store.save();
+  const st = Store.runState(def.id);
+
+  Audio2.T.mode = "click"; Audio2.setChart([]); Audio2.T.ramp = null;
+  if(resetTempo){
+    Audio2.setBpm(st.bpm);
+    $("#runBpm").value = Audio2.T.bpm;
+    $("#runBpmReadout").textContent = Audio2.T.bpm + " BPM";
+  }
+
+  const list = $("#runList"); list.innerHTML = "";
+  RUNS.forEach(r => {
+    const rs = d.runs[r.id];
+    const row = document.createElement("button");
+    row.className = "blockrow pick" + (r.id === R.id ? " active" : "");
+    row.innerHTML = '<div class="mins">' + (rs ? rs.bpm : r.start) + '<small>BPM</small></div>' +
+      '<div><div class="t">' + esc(r.name) + '</div><div class="s">' + esc(r.who) + " · " + r.npb +
+      " per click" + (rs && rs.reps ? " · " + rs.reps + " reps" : "") + '</div></div>' +
+      '<span class="chip' + (r.level === 1 ? ' go' : r.level === 3 ? ' amber' : '') + '">' + ["","Easy","Mid","Hard"][r.level] + '</span>';
+    row.onclick = () => { R.id = r.id; R.guide = false; $("#runGuide").textContent = "Guide me"; applyRun(true); };
+    list.appendChild(row);
+  });
+
+  $("#runLabel").textContent = noteName(R.keyPc,R.keyPc) + " " + R.qual + " pentatonic · " + (def.shape === "wide" ? "wide box" : "box shape");
+  $("#runWho").textContent = def.who;
+  $("#runName").textContent = def.name;
+  $("#runHow").textContent = def.how;
+  $("#runTab").textContent = runTab(R.shape, R.seq, def.npb);
+  $("#runTip").textContent = def.tip + " Each | in the tab is one click.";
+  $("#runStatus").textContent = "Working tempo " + st.bpm + " BPM" +
+    (st.best ? " · best clean " + st.best : "") + " · " + (st.reps||0) + " reps logged";
+  drawRun();
+}
+function drawRun(){
+  if(!R.shape) return;
+  const def = RUN_BY_ID[R.id];
+  $("#runFret").innerHTML = renderFretboard(R.shape, {
+    labelMode: S.labelMode,
+    highlightSet: R.guide ? runGroup({ def, seq:R.seq }, R.step) : null
+  });
+}
+function auditionRun(shape, seq, npb, bpm){
+  return Audio2.resume().then(() => {
+    const dt = 60 / Math.max(40, bpm) / npb, t0 = Audio2.now() + 0.1;
+    seq.forEach((ni, i) => Audio2.pluck(t0 + i*dt, shape.notes[ni].midi, Math.max(0.09, dt*1.5)));
+  });
+}
 function renderJam(){
   const kSel = $("#jamKey"), mSel = $("#jamMode"), pSel = $("#jamProg"), gSel = $("#jamGroove");
   if(!kSel.options.length){
@@ -1079,9 +1461,13 @@ function applyJam(){
   const progId = $("#jamProg").value;
   const custom = $("#jamChords").value.trim();
   jamShape = shape3nps(keyPc, modeId);
-  $("#jamFret").innerHTML = renderFretboard(jamShape, { labelMode: S.labelMode });
   const prog = PROGRESSIONS.filter(p => p.id === progId)[0];
   const chords = custom ? parseChart(custom) : parseChart(prog.build(keyPc, modeId).join(" | "));
+  if(!custom) $("#jamSong").hidden = true;
+  J.chords = chords; J.keyPc = keyPc;
+  J.scalePcs = MODE_BY_ID[modeId].formula.map(i => (keyPc + i) % 12);
+  if(J.idx >= chords.length || !Audio2.T.playing) J.idx = 0;
+  drawJam();
   Audio2.setChart(chords);
   Audio2.T.groove = $("#jamGroove").value;
   Audio2.T.ramp = null;
@@ -1150,8 +1536,9 @@ function bind(){
   };
   $("#recBtn").onclick = () => { S.recording ? finishRecording() : beginRecording(); };
   $$("#backingSeg button").forEach(b => b.onclick = () => {
-    Audio2.T.mode = b.dataset.mode; syncBacking();
+    Audio2.T.mode = b.dataset.mode; syncBacking(); renderTargets();
   });
+  $("#tonesBtn").onclick = () => { S.showTones = !S.showTones; setTonesLabel(); drawFret(); };
   $("#pauseBtn").onclick = () => {
     S.paused = !S.paused;
     $("#pauseBtn").textContent = S.paused ? "Resume" : "Pause";
@@ -1167,7 +1554,8 @@ function bind(){
   };
   $("#listenBtn").onclick = () => {
     const b = currentBlock(); if(!b || !b.shape) return;
-    Audio2.auditionShape(b.shape, Math.max(90, Audio2.T.bpm));
+    if(b.run) auditionRun(b.shape, b.run.seq, b.run.def.npb, Audio2.T.bpm);
+    else Audio2.auditionShape(b.shape, Math.max(90, Audio2.T.bpm));
   };
   $("#lessonGotIt").onclick = () => { $("#lessonCard").hidden = true; };
   $("#skipBlockBtn").onclick = () => {
@@ -1214,7 +1602,55 @@ function bind(){
     Audio2.T.mode = b.dataset.mode;
     $$("#jamSeg button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true":"false"));
   });
-  $("#jamPlay").onclick = () => { applyJam(); Audio2.toggle().then(setPlayLabel); };
+  $("#jamPlay").onclick = () => { applyJam(); Audio2.toggle().then(() => { setPlayLabel(); drawJam(); }); };
+  $("#jamTonesBtn").onclick = () => {
+    J.tones = !J.tones;
+    $("#jamTonesBtn").textContent = "Chord tones: " + (J.tones ? "on" : "off");
+    drawJam();
+  };
+
+  // classics library
+  $$("#libLevel button").forEach(b => b.onclick = () => {
+    libLevel = parseInt(b.dataset.lv, 10);
+    $$("#libLevel button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    renderLibrary();
+  });
+  $("#libSearch").oninput = () => renderLibrary();
+
+  // speed runs
+  $("#runKey").onchange = () => applyRun(false);
+  $("#runQual").onchange = () => applyRun(false);
+  const runSetBpm = v => {
+    Audio2.setBpm(v);
+    $("#runBpm").value = Audio2.T.bpm;
+    $("#runBpmReadout").textContent = Audio2.T.bpm + " BPM";
+  };
+  $("#runBpm").oninput = e => runSetBpm(parseInt(e.target.value, 10));
+  $("#runUp").onclick = () => runSetBpm(Audio2.T.bpm + 5);
+  $("#runDown").onclick = () => runSetBpm(Audio2.T.bpm - 5);
+  $("#runPlay").onclick = () => {
+    Audio2.T.mode = "click"; Audio2.T.ramp = null;
+    Audio2.toggle().then(on => { $("#runPlay").textContent = on ? "Stop" : "Play click"; });
+  };
+  $("#runGuide").onclick = () => {
+    R.guide = !R.guide; R.step = 0;
+    $("#runGuide").textContent = R.guide ? "Stop guide" : "Guide me";
+    drawRun();
+    if(R.guide && !Audio2.T.playing){
+      Audio2.T.mode = "click";
+      Audio2.start().then(() => { $("#runPlay").textContent = "Stop"; });
+    }
+  };
+  $("#runHear").onclick = () => auditionRun(R.shape, R.seq, RUN_BY_ID[R.id].npb, Audio2.T.bpm);
+  $$("#runRate button").forEach(b => b.onclick = () => {
+    const rate = parseInt(b.dataset.rate, 10), played = Audio2.T.bpm;
+    const st = Store.logRun(R.id, rate, played);
+    toast(["","Backing off — ","Holding steady — ","Moving up — "][rate] + "working tempo is now " + st.bpm + " BPM.");
+    applyRun(true);
+  });
+
+  // chords & rhythm
+  bindChords();
 
   // songs
   $("#songAdd").onclick = () => {

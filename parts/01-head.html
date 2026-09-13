@@ -268,6 +268,86 @@ label.field > span{display:block;margin-bottom:6px}
 }
 .nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:4px}
 .note{border-left:2px solid var(--amber-2);padding:2px 0 2px 12px;color:var(--cream-2);font-size:13.5px}
+
+/* ---- chord-tone targets ---- */
+.tgt-now{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tgt-now .ch{font-family:var(--f-legend);font-weight:600;font-size:44px;line-height:1;color:var(--cream);min-width:84px}
+.tgt-now .ln{flex:1;min-width:190px;color:#d6c9b1;font-size:14px;line-height:1.7}
+.tgt-row{display:block;width:100%;text-align:left;padding:9px 12px;border:1px solid var(--edge);border-radius:8px;background:rgba(0,0,0,.2);font-size:13.5px;line-height:1.75;color:#d6c9b1}
+.tgt-row.on{border-color:#3f6a48;background:rgba(127,180,137,.09)}
+.tgt-row > b{font-family:var(--f-legend);font-size:16px;letter-spacing:.04em;color:var(--cream);margin-right:8px;font-weight:600}
+.tn{font-family:var(--f-legend);font-weight:600;font-size:15px;padding:1px 6px;border-radius:4px;white-space:nowrap;border:1px solid transparent}
+.tn i{font-style:normal;font-family:var(--f-mono);font-size:10.5px;opacity:.75;margin-left:4px}
+.tn.g{background:rgba(127,180,137,.22);color:#cdeed2;border-color:#3f6a48}
+.tn.r{background:rgba(255,157,47,.15);color:var(--amber);border-color:#7a5320}
+.tn.f{color:var(--cream);border-color:var(--edge-hi)}
+.tn.t{color:#eab0a4;border:1px dashed #cd5f4d}
+.tgt-lbl{font-family:var(--f-legend);text-transform:uppercase;letter-spacing:.12em;font-size:11px;color:var(--cream-3);margin:0 4px 0 2px}
+.fretkey{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--cream-2)}
+.fretkey span{display:inline-flex;align-items:center;gap:6px}
+.kd{width:12px;height:12px;border-radius:50%;display:inline-block;border:1.5px solid}
+.kd.g{background:#7fb489;border-color:#cdeed2}
+.kd.r{background:#ff9d2f;border-color:#ffcb84}
+.kd.f{background:#3a3026;border-color:#ece0c8}
+.kd.t{background:transparent;border:1.5px dashed #cd5f4d}
+.kd.o{background:transparent;border:1.5px dashed #7fb489}
+
+/* ---- song library ---- */
+.libhead{width:100%;text-align:left}
+.libhead .chev{font-family:var(--f-legend);font-size:20px;color:var(--cream-3);width:18px;text-align:center}
+.libcard{padding:2px 0 14px;display:flex;flex-direction:column;gap:10px;border-bottom:1px dashed rgba(236,224,200,.13)}
+.chart{font-family:var(--f-mono);font-size:12.5px;color:var(--cream);padding:10px 12px;border:1px solid var(--edge);border-radius:8px;background:rgba(0,0,0,.3);overflow-x:auto;white-space:nowrap}
+.libcount{font-size:12px;color:var(--cream-3);font-family:var(--f-mono)}
+
+/* ---- speed runs ---- */
+.tab{margin:0;padding:12px;border:1px solid var(--edge);border-radius:8px;background:rgba(0,0,0,.35);font-family:var(--f-mono);font-size:12.5px;line-height:1.4;color:var(--cream);overflow-x:auto;white-space:pre}
+.blockrow.pick{cursor:pointer;width:100%;text-align:left}
+.blockrow .mins small{display:block;font-size:9.5px;letter-spacing:.12em;color:var(--cream-3);line-height:1}
+
+/* ---- chords & rhythm ---- */
+.chordrow{display:flex;gap:8px;flex-wrap:wrap}
+.diag{display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 4px 7px;border:1px solid var(--edge);border-radius:8px;background:rgba(0,0,0,.2);width:82px}
+.diag svg{width:70px;height:auto;display:block}
+.diag b{font-family:var(--f-legend);font-size:16px;font-weight:600;letter-spacing:.03em;line-height:1.1}
+.diag.on{border-color:var(--amber-2);background:rgba(255,157,47,.09)}
+.swap{align-self:center;font-family:var(--f-legend);font-size:26px;color:var(--cream-3)}
+.sgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px 5px}
+.scell{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.scell .bt{font-family:var(--f-mono);font-size:11px;color:var(--cream-3);line-height:1}
+.scell .ar{width:100%;max-width:46px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--edge-hi);border-radius:6px;font-size:22px;line-height:1;color:var(--cream);background:rgba(0,0,0,.25);transition:box-shadow .06s,transform .06s}
+.scell .ar.acc{background:linear-gradient(180deg,#ffb14e,var(--amber));color:#2a1704;border-color:#ffcb84;font-weight:700}
+.scell .ar.miss{color:var(--cream-3);border-style:dashed;opacity:.45}
+.scell .ar.mute{color:var(--cream-2);font-size:15px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.04) 0 3px,transparent 3px 6px)}
+.scell.hit .ar{box-shadow:0 0 0 2px #f2efe6,0 0 16px rgba(242,239,230,.35);transform:translateY(1px)}
+.scell.hit .bt{color:var(--cream)}
+.pwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.pgrid{border-collapse:collapse;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.pgrid td,.pgrid th{text-align:center;padding:4px 0;min-width:28px;color:var(--cream-3)}
+.pgrid th{font-family:var(--f-legend);font-weight:600;font-size:12px;padding-right:8px;min-width:18px;text-align:left}
+.pgrid tr.str td{border-bottom:1px solid rgba(236,224,200,.14)}
+.pgrid td.on{color:var(--cream);font-weight:700}
+.pgrid td.bass{color:var(--amber)}
+.pgrid tr.fing td{font-family:var(--f-legend);font-size:13px;color:var(--amber-2);padding-top:7px}
+.pgrid tr.beats td{font-size:10.5px}
+.pgrid td.hit{background:rgba(242,239,230,.13)}
+.ctimer{font-family:var(--f-legend);font-weight:700;font-size:72px;line-height:.9;text-align:center;font-variant-numeric:tabular-nums;color:var(--cream)}
+.ctimer.run{color:var(--amber)}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper input{width:90px;text-align:center;font-family:var(--f-legend);font-size:24px;padding:6px}
+.formula{display:flex;gap:8px;flex-wrap:wrap}
+.ftone{display:flex;flex-direction:column;align-items:center;min-width:52px;padding:8px 8px 6px;border:1px solid var(--edge-hi);border-radius:8px;background:rgba(0,0,0,.22)}
+.ftone b{font-family:var(--f-legend);font-size:24px;font-weight:600;line-height:1}
+.ftone span{font-family:var(--f-mono);font-size:11px;color:var(--cream-2);margin-top:3px}
+.ftone.root{border-color:#7a5320;background:rgba(255,157,47,.1)}
+.ftone.root b{color:var(--amber)}
+.bighead{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.bighead .nm{font-family:var(--f-legend);font-weight:700;font-size:48px;line-height:.9;letter-spacing:.02em}
+.bighead .ql{font-family:var(--f-legend);text-transform:uppercase;letter-spacing:.16em;font-size:13px;color:var(--amber-2);padding-bottom:4px}
+.keygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+.keygrid button{padding:8px 4px;border:1px solid var(--edge);border-radius:8px;background:rgba(0,0,0,.2);display:flex;flex-direction:column;align-items:center;gap:1px}
+.keygrid i{font-style:normal;font-family:var(--f-mono);font-size:11px;color:var(--amber-2)}
+.keygrid b{font-family:var(--f-legend);font-size:19px;font-weight:600;line-height:1.1}
+.keygrid span{font-size:11px;color:var(--cream-3);font-family:var(--f-mono)}
 /* ---------- live chord readout ---------- */
 .chordcard{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}
 .chordnow{font-family:var(--f-legend);font-weight:700;font-size:46px;line-height:.9;color:var(--amber);min-width:2.6ch;white-space:nowrap}

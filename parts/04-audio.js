@@ -334,9 +334,33 @@ const Audio2 = (function(){
     });
   }
 
+  /* a strummed chord: notes staggered low→high (down) or high→low (up) */
+  function strum(t, midis, up, v, dur){
+    v = v || 1; dur = dur || 0.9;
+    const bus = ctx.createGain(); bus.gain.value = 0.16 * v; bus.connect(master);
+    const order = up ? midis.slice(-4).reverse() : midis;
+    order.forEach((m, i) => {
+      const tt = t + i * (up ? 0.009 : 0.013);
+      const f = midiToFreq(m);
+      const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = f;
+      const o2 = ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = f * 2.003;
+      const g2 = ctx.createGain(); g2.gain.value = 0.22;
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass";
+      lp.frequency.setValueAtTime(up ? 4200 : 3200, tt);
+      lp.frequency.exponentialRampToValueAtTime(650, tt + dur);
+      const eg = ctx.createGain();
+      eg.gain.setValueAtTime(0.0001, tt);
+      eg.gain.exponentialRampToValueAtTime(1, tt + 0.004);
+      eg.gain.exponentialRampToValueAtTime(0.001, tt + dur);
+      o.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(eg); eg.connect(bus);
+      o.start(tt); o2.start(tt); o.stop(tt + dur + 0.05); o2.stop(tt + dur + 0.05);
+    });
+  }
+  function scratch(t, v){ ensure(); noise(t, 0.045, 1400, 5200, 0.32 * (v || 1), master); }
+
   return {
     ensure, resume, now, T, GROOVES, GROOVE_IDS,
-    start, stop, toggle, chime, drone, auditionShape, pluck,
+    start, stop, toggle, chime, drone, auditionShape, pluck, strum, scratch,
     setChart(chords){ T.chart = chords; },
     setBpm(b){ T.bpm = Math.max(40, Math.min(220, Math.round(b))); },
     kit
