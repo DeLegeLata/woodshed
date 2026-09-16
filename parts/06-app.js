@@ -25,6 +25,7 @@ const SCREENS = ["home","plan","tuner","block","blockend","done","jam","songs","
 let screen = "home";
 function go(name){
   screen = name;
+  Audio2.auditionStop(); S.hearSet = null;
   SCREENS.forEach(s => { const el = $("#scr-"+s); if(el) el.hidden = (s !== name); });
   window.scrollTo(0,0);
   if(name === "home")     renderHome();
@@ -36,6 +37,7 @@ function go(name){
   if(name === "runs")     renderRuns();
   if(name === "chords")   renderChords();
   if(name !== "chords" && name !== "block" && RH.changeIv){ clearInterval(RH.changeIv); RH.changeIv = null; }
+  hearLabels();
 }
 
 /* ---------- drill content ---------- */
@@ -454,7 +456,7 @@ function wrongNoteOptions(target){
    ============================================================ */
 const S = {
   plan:null, idx:0, remaining:0, tick:null, paused:false,
-  labelMode: "deg", guide:false, guideStep:0,
+  labelMode: "deg", guide:false, guideStep:0, hearSet:null,
   score:null, quiz:null, quizIdx:0, quizRight:0,
   recording:false, recStart:0, sessionRecs:[], wakeLock:null,
   lastBeatTime:0, blockSeconds:0
@@ -489,7 +491,7 @@ function enterBlock(){
   S.remaining = b.minutes * 60;
   S.blockSeconds = S.remaining;
   S.paused = false;
-  S.guide = false; S.guideStep = 0;
+  S.guide = false; S.guideStep = 0; S.hearSet = null; Audio2.auditionStop();
   S.score = { total:0, inKey:0, timing:[] };
 
   $("#blockKind").textContent = ({
@@ -631,7 +633,8 @@ function drawFret(){
     lg.innerHTML = "";
     return;
   }
-  opts.highlight = S.guide ? S.guideStep % b.shape.notes.length : -1;
+  if(S.hearSet) opts.highlightSet = S.hearSet;
+  else opts.highlight = S.guide ? S.guideStep % b.shape.notes.length : -1;
   // the chord to colour: whatever the band is playing, else the one picked on the Where to land card
   const ch = S.chord || (S.showTones && b.chart && b.chart.length ? b.chart[S.chordIdx % b.chart.length] : null);
   if(ch) opts.targets = targetMap(ch, b.scalePcs);
@@ -852,6 +855,7 @@ function syncBacking(){
 function setPlayLabel(){
   const p = $("#playBtn"); if(p) p.textContent = Audio2.T.playing ? "Stop" : "Play";
   const j = $("#jamPlay");  if(j) j.textContent = Audio2.T.playing ? "Stop" : "Play";
+  hearLabels();
 }
 
 Audio2.T.onBeat = function(t, beatInBar, isDown, counting, absBeat){
@@ -863,11 +867,11 @@ Audio2.T.onBeat = function(t, beatInBar, isDown, counting, absBeat){
     lamp.classList.add("on");
     lamp.classList.toggle("accent", !!isDown);
     setTimeout(() => lamp.classList.remove("on"), 85);
-    if(S.guide && screen === "block" && !counting){
+    if(S.guide && screen === "block" && !counting && !Audio2.auditioning()){
       S.guideStep++;
       drawFret();
     }
-    if(R.guide && screen === "runs" && !counting){
+    if(R.guide && screen === "runs" && !counting && !Audio2.auditioning()){
       R.step++;
       drawRun();
     }
@@ -1416,7 +1420,7 @@ function applyRun(resetTempo){
       '<div><div class="t">' + esc(r.name) + '</div><div class="s">' + esc(r.who) + " · " + r.npb +
       " per click" + (rs && rs.reps ? " · " + rs.reps + " reps" : "") + '</div></div>' +
       '<span class="chip' + (r.level === 1 ? ' go' : r.level === 3 ? ' amber' : '') + '">' + ["","Easy","Mid","Hard"][r.level] + '</span>';
-    row.onclick = () => { R.id = r.id; R.guide = false; $("#runGuide").textContent = "Guide me"; applyRun(true); };
+    row.onclick = () => { stopHearing(); R.id = r.id; R.guide = false; $("#runGuide").textContent = "Guide me"; applyRun(true); };
     list.appendChild(row);
   });
 
@@ -1438,11 +1442,46 @@ function drawRun(){
     highlightSet: R.guide ? runGroup({ def, seq:R.seq }, R.step) : null
   });
 }
-function auditionRun(shape, seq, npb, bpm){
-  return Audio2.resume().then(() => {
-    const dt = 60 / Math.max(40, bpm) / npb, t0 = Audio2.now() + 0.1;
-    seq.forEach((ni, i) => Audio2.pluck(t0 + i*dt, shape.notes[ni].midi, Math.max(0.09, dt*1.5)));
+/* "Hear it" — one group per click, looping, handed to the audio scheduler so it
+   lands on the beat. get() is read fresh every click, so changing the key, the
+   run or the tempo while it's going is picked up on the next one. */
+function auditionRun(get, onGroup){
+  let last = [];
+  return Audio2.audition({
+    at(k){
+      const r = get();
+      if(!r || !r.shape || !r.seq || !r.seq.length) return null;
+      const grp = runGroup({ def:{ npb:r.npb }, seq:r.seq }, k);
+      last = grp;
+      return grp.map((ni, j) => ({
+        at: j / r.npb,
+        midi: r.shape.notes[ni].midi,
+        dur: 1.5 / r.npb,
+        v: j === 0 ? 1.15 : 0.75      // the note on the click is the loud one
+      }));
+    },
+    onGroup(k, t){ onGroup(k, t, last); }
   });
+}
+/* root up to the next root, for shapes that aren't a run */
+function octaveSeq(shape){
+  const seq = [0];
+  for(let i=1;i<shape.notes.length;i++){
+    seq.push(i);
+    if(shape.notes[i].midi >= shape.notes[0].midi + 12) break;
+  }
+  return seq;
+}
+/* it loops now, so the button that starts it is also the one that stops it */
+function hearLabels(){
+  const on = Audio2.auditioning();
+  const a = $("#runHear");   if(a) a.textContent = on ? "Stop" : "Hear it";
+  const b = $("#listenBtn"); if(b) b.textContent = on ? "Stop" : "Hear it";
+}
+function stopHearing(){
+  Audio2.auditionStop();
+  S.hearSet = null;
+  hearLabels();
 }
 function renderJam(){
   const kSel = $("#jamKey"), mSel = $("#jamMode"), pSel = $("#jamProg"), gSel = $("#jamGroove");
@@ -1548,14 +1587,24 @@ function bind(){
   $("#lblNote").onclick = () => { S.labelMode = "note"; $("#lblDeg").setAttribute("aria-pressed","false"); $("#lblNote").setAttribute("aria-pressed","true");  drawFret(); };
   $("#guideBtn").onclick = () => {
     S.guide = !S.guide; S.guideStep = 0;
+    if(!S.guide) stopHearing();
     $("#guideBtn").textContent = S.guide ? "Stop the guide" : "Guide me through it";
     drawFret();
     if(S.guide && !Audio2.T.playing) Audio2.start().then(setPlayLabel);
   };
   $("#listenBtn").onclick = () => {
+    if(Audio2.auditioning()){ stopHearing(); return; }
     const b = currentBlock(); if(!b || !b.shape) return;
-    if(b.run) auditionRun(b.shape, b.run.seq, b.run.def.npb, Audio2.T.bpm);
-    else Audio2.auditionShape(b.shape, Math.max(90, Audio2.T.bpm));
+    S.guide = true; S.guideStep = 0;
+    $("#guideBtn").textContent = "Stop the guide";
+    auditionRun(
+      () => b.run ? { shape:b.shape, seq:b.run.seq, npb:b.run.def.npb }
+                  : { shape:b.shape, seq:octaveSeq(b.shape), npb:2 },
+      (k, t, grp) => setTimeout(() => {
+        if(screen !== "block" || !Audio2.auditioning()) return;
+        S.guideStep = k; S.hearSet = grp; drawFret();
+      }, Math.max(0, (t - Audio2.now()) * 1000))
+    ).then(() => { setPlayLabel(); hearLabels(); });
   };
   $("#lessonGotIt").onclick = () => { $("#lessonCard").hidden = true; };
   $("#skipBlockBtn").onclick = () => {
@@ -1630,10 +1679,11 @@ function bind(){
   $("#runDown").onclick = () => runSetBpm(Audio2.T.bpm - 5);
   $("#runPlay").onclick = () => {
     Audio2.T.mode = "click"; Audio2.T.ramp = null;
-    Audio2.toggle().then(on => { $("#runPlay").textContent = on ? "Stop" : "Play click"; });
+    Audio2.toggle().then(on => { $("#runPlay").textContent = on ? "Stop" : "Play click"; hearLabels(); });
   };
   $("#runGuide").onclick = () => {
     R.guide = !R.guide; R.step = 0;
+    if(!R.guide) stopHearing();
     $("#runGuide").textContent = R.guide ? "Stop guide" : "Guide me";
     drawRun();
     if(R.guide && !Audio2.T.playing){
@@ -1641,7 +1691,19 @@ function bind(){
       Audio2.start().then(() => { $("#runPlay").textContent = "Stop"; });
     }
   };
-  $("#runHear").onclick = () => auditionRun(R.shape, R.seq, RUN_BY_ID[R.id].npb, Audio2.T.bpm);
+  $("#runHear").onclick = () => {
+    if(Audio2.auditioning()){ stopHearing(); return; }
+    Audio2.T.mode = "click"; Audio2.T.ramp = null;
+    R.guide = true; R.step = 0;
+    $("#runGuide").textContent = "Stop guide";
+    auditionRun(
+      () => ({ shape:R.shape, seq:R.seq, npb:RUN_BY_ID[R.id].npb }),
+      (k, t) => setTimeout(() => {
+        if(screen !== "runs" || !Audio2.auditioning()) return;
+        R.step = k; drawRun();
+      }, Math.max(0, (t - Audio2.now()) * 1000))
+    ).then(() => { $("#runPlay").textContent = "Stop"; hearLabels(); });
+  };
   $$("#runRate button").forEach(b => b.onclick = () => {
     const rate = parseInt(b.dataset.rate, 10), played = Audio2.T.bpm;
     const st = Store.logRun(R.id, rate, played);

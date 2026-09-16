@@ -172,7 +172,7 @@ const Audio2 = (function(){
     beat:0, nextTime:0, timer:null, countInLeft:0,
     ramp:null,              // {every, step, target}
     onBeat:null, onBar:null,
-    _guide:null
+    _guide:null, _aud:null, _countInOnce:false
   };
 
   const LOOKAHEAD = 0.12, TICK = 25;
@@ -243,6 +243,25 @@ const Audio2 = (function(){
       }
     }
 
+    /* An audition is a phrase handed to the scheduler rather than played on its
+       own clock: its notes are laid out from this beat's own timestamp, so they
+       sit on the click instead of drifting against it. It waits for a downbeat
+       to start, and follows the tempo live if the slider moves. */
+    if(T._aud){
+      const A = T._aud;
+      if(A.beat0 == null && isDownbeat) A.beat0 = absBeat;
+      if(A.beat0 != null){
+        const k = absBeat - A.beat0;
+        const notes = A.spec.at(k);
+        if(!notes){ T._aud = null; if(A.spec.onEnd) A.spec.onEnd(); }
+        else {
+          const sp = spb();
+          notes.forEach(n => pluck(t + n.at * sp, n.midi, Math.max(0.08, n.dur * sp), n.v));
+          if(A.spec.onGroup) A.spec.onGroup(k, t);
+        }
+      }
+    }
+
     if(T.onBeat) T.onBeat(t, beatInBar, isDownbeat, false, absBeat);
     if(isDownbeat && T.onBar) T.onBar(t, bar);
   }
@@ -267,7 +286,8 @@ const Audio2 = (function(){
       if(T.playing) return;
       T.playing = true;
       T.beat = 0;
-      T.countInLeft = T.countIn ? T.beatsPerBar : 0;
+      T.countInLeft = (T.countIn || T._countInOnce) ? T.beatsPerBar : 0;
+      T._countInOnce = false;
       T.nextTime = ctx.currentTime + 0.08;
       T.timer = setInterval(loop, TICK);
       loop();
@@ -275,21 +295,26 @@ const Audio2 = (function(){
   }
   function stop(){
     T.playing = false;
+    T._aud = null;
     if(T.timer){ clearInterval(T.timer); T.timer = null; }
   }
   function toggle(){ return T.playing ? (stop(), Promise.resolve(false)) : start().then(()=>true); }
 
-  /* play a scale shape as audio, for "Hear it" */
-  function auditionShape(shape, bpm){
+  /* "Hear it": spec.at(k) returns the notes for the k-th beat since the phrase
+     started — {at} is the fraction of that beat, {dur} is in beats — or null to
+     finish. If the click is stopped this starts it and counts in a bar first. */
+  function audition(spec){
     return resume().then(() => {
-      const t0 = ctx.currentTime + 0.1, dt = 60/(bpm||120)/2;
-      shape.notes.forEach((n,i) => {
-        pluck(t0 + i*dt, n.midi, dt*0.95);
-      });
-      return shape.notes.length * dt;
-    });
+      T._aud = { spec, beat0:null };
+      if(T.playing) return;
+      T._countInOnce = true;
+      return start();
+    }).then(() => true);
   }
-  function pluck(t, midi, dur){
+  function auditionStop(){ T._aud = null; }
+  function auditioning(){ return !!T._aud; }
+  function pluck(t, midi, dur, v){
+    v = v == null ? 1 : v;
     const f = midiToFreq(midi);
     const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = f;
     const o2 = ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = f*2.005;
@@ -298,7 +323,7 @@ const Audio2 = (function(){
     lp.frequency.exponentialRampToValueAtTime(700, t+dur);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(0.4, t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.4 * v, t+0.006);
     g.gain.exponentialRampToValueAtTime(0.0008, t+dur);
     const g2 = ctx.createGain(); g2.gain.value = 0.16;
     o.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(master);
@@ -360,7 +385,8 @@ const Audio2 = (function(){
 
   return {
     ensure, resume, now, T, GROOVES, GROOVE_IDS,
-    start, stop, toggle, chime, drone, auditionShape, pluck, strum, scratch,
+    start, stop, toggle, chime, drone, pluck, strum, scratch,
+    audition, auditionStop, auditioning,
     setChart(chords){ T.chart = chords; },
     setBpm(b){ T.bpm = Math.max(40, Math.min(220, Math.round(b))); },
     kit
