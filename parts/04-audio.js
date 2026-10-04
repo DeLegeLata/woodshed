@@ -123,7 +123,8 @@ const Audio2 = (function(){
     lastVoicing = v;
     return v;
   }
-  function bassMidi(pc, low){ let m = 28 + pc; while(m < (low||36)) m += 12; while(m > 50) m -= 12; return m; }
+  /* pc counts up from C, so it's added to a C (MIDI 24): the root lands between C2 and B2 */
+  function bassMidi(pc, low){ let m = 24 + pc; while(m < (low||36)) m += 12; while(m > 50) m -= 12; return m; }
 
   /* ---------- grooves ---------- */
   /* events: {b: beat within bar (0-based, may be fractional), i: instrument, v: velocity} */
@@ -220,12 +221,15 @@ const Audio2 = (function(){
         if(isDownbeat && T.onChord) T.onChord(ch, T.chart[(idx+1) % T.chart.length], idx, T.chart.length, t);
         const v = voiceChord(ch);
         const rootB = bassMidi(ch.pc);
-        const fifth = rootB + 7;
-        const third = rootB + (ch.intervals.indexOf(3) !== -1 ? 3 : 4);
-        const sev   = rootB + (ch.intervals.indexOf(10) !== -1 ? 10 : 11);
+        // the bass only plays notes the chord has: a ♭5 under a m7♭5, and no 3rd or 7th the chord doesn't spell out
+        const has = iv => ch.intervals.some(x => x % 12 === iv);
+        const fifth = rootB + (has(7) ? 7 : has(6) ? 6 : has(8) ? 8 : 7);
+        const third = rootB + (has(4) ? 4 : has(3) ? 3 : has(5) ? 5 : has(2) ? 2 : 12);
+        const sev   = has(10) ? rootB + 10 : has(11) ? rootB + 11 : has(9) ? rootB + 9 : third;
         if(g.comp === "jazz"){
-          // walking bass, one note per beat
-          const walk = [rootB, third, fifth, sev];
+          // walking bass, one note per beat: root, 3rd, 5th, 7th. A chord with no 7th comes back
+          // down to its 3rd, and one with no 3rd either goes root, 5th, octave, 5th.
+          const walk = third === rootB + 12 ? [rootB, fifth, third, fifth] : [rootB, third, fifth, sev];
           bassNote(t, walk[beatInBar % 4], spb()*0.9, 0.9);
           if(beatInBar === 1 || beatInBar === 3) chordStab(t + spb()*0.665, v, spb()*0.5, 0.85);
         } else if(g.comp === "shuffle"){
@@ -329,16 +333,18 @@ const Audio2 = (function(){
     o.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(master);
     o.start(t); o2.start(t); o.stop(t+dur+0.03); o2.stop(t+dur+0.03);
   }
-  function drone(pc, on){
-    // sustained root so a mode actually sounds like that mode
+  function drone(pc, on, fifth){
+    // sustained root so a mode actually sounds like that mode. The fifth on top is
+    // left out when the mode hasn't got a perfect one (Locrian).
+    T._droneWant = !!on;
     if(!on){ if(T._drone){ try{ T._drone.stop(); }catch(e){} T._drone = null; } return; }
     resume().then(() => {
-      if(T._drone) return;
+      if(T._drone || !T._droneWant) return;      // switched off again while the audio was still starting up
       const t = ctx.currentTime;
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001,t);
       g.gain.exponentialRampToValueAtTime(0.10, t+0.6); g.connect(master);
       const oscs = [];
-      [0,12,19].forEach((iv,i) => {
+      (fifth === false ? [0,12] : [0,12,19]).forEach((iv,i) => {
         const o = ctx.createOscillator();
         o.type = i===0?"sawtooth":"sine";
         o.frequency.value = midiToFreq(bassMidi(pc,36) + iv);
@@ -346,7 +352,9 @@ const Audio2 = (function(){
         const og = ctx.createGain(); og.gain.value = i===0?0.28:0.16;
         o.connect(og); og.connect(g); o.start(t); oscs.push(o);
       });
-      T._drone = { stop(){ const tt=ctx.currentTime; g.gain.exponentialRampToValueAtTime(0.0005,tt+0.3);
+      T._drone = { stop(){ const tt=ctx.currentTime;
+        g.gain.cancelScheduledValues(tt); g.gain.setValueAtTime(g.gain.value, tt);   // fade from where it is now
+        g.gain.exponentialRampToValueAtTime(0.0005,tt+0.3);
         oscs.forEach(o=>o.stop(tt+0.35)); } };
     });
   }

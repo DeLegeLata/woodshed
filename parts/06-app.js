@@ -300,10 +300,10 @@ function buildSession(minutes){
       case "runs": {
         const r = pickRun(), st = Store.runState(r.id);
         const q = pentQualityFor(target.mode.id);
-        const rs = pentaShape(target.keyPc, q, r.shape === "wide");
+        const built = buildRun(r, target.keyPc, q), rs = built.shape;
         b.title = r.name;
         b.brief = r.how + " Tempo climbs 3 BPM every two bars. When it gets messy, knock it back 10 and build up again.";
-        b.run = { def:r, seq:r.gen(rs.notes.length), quality:q };
+        b.run = { def:r, seq:built.seq, slideAt:built.slideAt, quality:q };
         b.shape = rs;
         b.scalePcs = pentaPcs(target.keyPc, q);
         b.fretLabel = keyName + " " + q + " pentatonic · " + r.who;
@@ -492,6 +492,7 @@ function enterBlock(){
   S.blockSeconds = S.remaining;
   S.paused = false;
   S.guide = false; S.guideStep = 0; S.hearSet = null; Audio2.auditionStop();
+  Audio2.drone(0, false);                 // a skipped block's drone mustn't carry on under this one
   S.score = { total:0, inKey:0, timing:[] };
 
   $("#blockKind").textContent = ({
@@ -540,6 +541,12 @@ function enterBlock(){
     $("#tonesBtn").hidden = !!b.run || !(b.chart && b.chart.length);
     setTonesLabel();
     drawFret();
+    // The block isn't on screen yet, and a hidden scroller can't be moved. Once it's showing, a run
+    // through several boxes opens where it starts (lit for one unseen draw), anything else at the nut end.
+    requestAnimationFrame(() => {
+      if(currentBlock() !== b || S.guide) return;
+      if(b.run){ drawFret(true); drawFret(); } else followGuide($("#fretWrap"));
+    });
   }
 
   // speed-run tab
@@ -548,8 +555,8 @@ function enterBlock(){
     const r = b.run.def;
     $("#runCardWho").textContent = r.who + " · " + LEVEL_NAME[r.level];
     $("#runCardNpb").textContent = r.npb + " notes per click";
-    $("#runCardTab").textContent = runTab(b.shape, b.run.seq, r.npb);
-    $("#runCardTip").textContent = r.tip + " Each | in the tab is one click.";
+    $("#runCardTab").textContent = runTab(b.shape, b.run.seq, r.npb, b.run.slideAt);
+    $("#runCardTip").textContent = r.tip + runTabKey(b.shape);
   }
 
   // where to land
@@ -581,7 +588,7 @@ function enterBlock(){
       btn.setAttribute("aria-pressed", on ? "true" : "false");
       btn.style.borderColor = on ? "var(--amber-2)" : "";
       btn.style.color = on ? "var(--amber)" : "";
-      Audio2.drone(b.target.keyPc, on);
+      Audio2.drone(b.target.keyPc, on, b.target.mode.formula.indexOf(7) !== -1);
     };
     ex.appendChild(btn);
   }
@@ -617,7 +624,7 @@ function updateClock(){
   $("#blockBar").style.width = Math.min(100, Math.max(0,pct)) + "%";
 }
 
-function drawFret(){
+function drawFret(peek){
   const b = currentBlock(); if(!b || !b.shape) return;
   const opts = { labelMode: S.labelMode };
   let lg = $("#fretLegend");
@@ -627,8 +634,9 @@ function drawFret(){
     $("#fretWrap").after(lg);
   }
   if(b.run){
-    if(S.guide) opts.highlightSet = runGroup(b.run, S.guideStep);
+    if(S.guide || peek) opts.highlightSet = runGroup(b.run, S.guideStep);
     $("#fretWrap").innerHTML = renderFretboard(b.shape, opts);
+    followGuide($("#fretWrap"));
     $("#fretKey").hidden = true;
     lg.innerHTML = "";
     return;
@@ -647,6 +655,7 @@ function drawFret(){
     charName = noteName(opts.charPc, parentMajorPc(b.target.keyPc, m.id));
   }
   $("#fretWrap").innerHTML = renderFretboard(b.shape, opts);
+  followGuide($("#fretWrap"));
   const key = $("#fretKey");
   key.hidden = !opts.targets;
   if(opts.targets && !key.innerHTML) key.innerHTML = FRETKEY_HTML;
@@ -1283,6 +1292,7 @@ function jamClassic(c){
   $("#jamMode").value = c.mode;
   $("#jamGroove").value = c.groove;
   $("#jamChords").value = c.chords;
+  J.fromClassic = true;
   $("#jamBpm").value = c.bpm;
   $$("#jamSeg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.mode === "band" ? "true" : "false"));
   $("#jamSong").hidden = false;
@@ -1348,7 +1358,7 @@ function renderSettings(){
 
 /* ---------- free jam ---------- */
 let jamShape = null;
-const J = { chords:[], idx:0, keyPc:4, scalePcs:[], tones:true };
+const J = { chords:[], idx:0, keyPc:4, scalePcs:[], tones:true, fromClassic:false };
 function drawJam(){
   if(!jamShape) return;
   const ch = J.tones && J.chords.length ? J.chords[J.idx % J.chords.length] : null;
@@ -1378,7 +1388,7 @@ function drawJam(){
 }
 
 /* ---------- speed runs drill ---------- */
-const R = { id:"up4", keyPc:9, qual:"minor", guide:false, step:0, shape:null, seq:null };
+const R = { id:"up4", keyPc:9, qual:"minor", guide:false, step:0, shape:null, seq:null, slideAt:null };
 function renderRuns(){
   const kSel = $("#runKey");
   if(!kSel.options.length){
@@ -1397,8 +1407,8 @@ function applyRun(resetTempo){
   R.keyPc = parseInt($("#runKey").value, 10);
   R.qual = $("#runQual").value;
   const def = RUN_BY_ID[R.id];
-  R.shape = pentaShape(R.keyPc, R.qual, def.shape === "wide");
-  R.seq = def.gen(R.shape.notes.length);
+  const built = buildRun(def, R.keyPc, R.qual);
+  R.shape = built.shape; R.seq = built.seq; R.slideAt = built.slideAt;
   R.step = 0;
   const d = Store.load();
   d.runPrefs = { id:R.id, keyPc:R.keyPc, qual:R.qual }; Store.save();
@@ -1424,23 +1434,44 @@ function applyRun(resetTempo){
     list.appendChild(row);
   });
 
-  $("#runLabel").textContent = noteName(R.keyPc,R.keyPc) + " " + R.qual + " pentatonic · " + (def.shape === "wide" ? "wide box" : "box shape");
+  $("#runLabel").textContent = noteName(R.keyPc,R.keyPc) + " " + R.qual + " pentatonic · " + runShapeLabel(def, R.shape);
   $("#runWho").textContent = def.who;
   $("#runName").textContent = def.name;
   $("#runHow").textContent = def.how;
-  $("#runTab").textContent = runTab(R.shape, R.seq, def.npb);
-  $("#runTip").textContent = def.tip + " Each | in the tab is one click.";
+  $("#runTab").textContent = runTab(R.shape, R.seq, def.npb, R.slideAt);
+  $("#runTip").textContent = def.tip + runTabKey(R.shape);
   $("#runStatus").textContent = "Working tempo " + st.bpm + " BPM" +
     (st.best ? " · best clean " + st.best : "") + " · " + (st.reps||0) + " reps logged";
+  drawRun(true);        // lit once, unseen, so a wide diagram opens where the run starts
   drawRun();
 }
-function drawRun(){
+function drawRun(peek){
   if(!R.shape) return;
   const def = RUN_BY_ID[R.id];
   $("#runFret").innerHTML = renderFretboard(R.shape, {
     labelMode: S.labelMode,
-    highlightSet: R.guide ? runGroup({ def, seq:R.seq }, R.step) : null
+    highlightSet: R.guide || peek ? runGroup({ def, seq:R.seq }, R.step) : null
   });
+  followGuide($("#runFret"));
+}
+function runTabKey(shape){
+  return " Each | in the tab is one click." +
+    (shape.slides && shape.slides.length ? " A / or \\ is a slide into the next box, drawn as an amber bar on the neck." : "") +
+    (shape.openShift ? " In this key one shift meets an open string, where there's nothing to slide: hammer on or pull off instead." : "");
+}
+/* A run through several boxes is wider than the screen: keep the notes that are lit in view.
+   Only those diagrams carry their own min-width. Any other diagram is left where it is, except
+   that the first one drawn after a linked run goes back to the nut end. */
+function followGuide(wrap){
+  const svg = wrap.firstElementChild, lit = wrap.querySelectorAll(".hi");
+  if(!svg || !wrap.clientWidth) return;                    // not on screen: a hidden scroller can't be moved
+  if(!svg.style.minWidth){ if(wrap.dataset.led){ wrap.scrollLeft = 0; delete wrap.dataset.led; } return; }
+  if(!lit.length || wrap.scrollWidth <= wrap.clientWidth) return;
+  const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+  let lo = Infinity, hi = -Infinity;
+  lit.forEach(c => { const x = c.cx.baseVal.value * k; lo = Math.min(lo, x); hi = Math.max(hi, x); });
+  wrap.scrollLeft = Math.max(0, (lo + hi) / 2 - wrap.clientWidth / 2);
+  wrap.dataset.led = "1";
 }
 /* "Hear it" — one group per click, looping, handed to the audio scheduler so it
    lands on the beat. get() is read fresh every click, so changing the key, the
@@ -1492,17 +1523,34 @@ function renderJam(){
     Audio2.GROOVE_IDS.forEach(g => { const o = document.createElement("option"); o.value = g; o.textContent = Audio2.GROOVES[g].name; gSel.appendChild(o); });
     kSel.value = 4; mSel.value = "dorian"; pSel.value = "vamp"; gSel.value = "rock";
   }
+  // a classic's chart belongs to that visit: coming back to Free jam starts from the selects again
+  if(J.fromClassic) clearJamChart();
   applyJam();
+}
+/* The typed-chords box outranks Key, Mode and Progression, so it has to be emptied when it's stale. */
+function clearJamChart(){
+  $("#jamChords").value = "";
+  $("#jamSong").hidden = true;
+  J.fromClassic = false;
 }
 function applyJam(){
   const keyPc = parseInt($("#jamKey").value,10);
   const modeId = $("#jamMode").value;
-  const progId = $("#jamProg").value;
   const custom = $("#jamChords").value.trim();
+  // typed chords are in charge while the box has anything in it, so the Progression select goes
+  // blank. Any pick is then a change, and an emptied box falls back to the vamp.
+  const pSel = $("#jamProg");
+  if(custom) pSel.selectedIndex = -1; else if(pSel.selectedIndex === -1) pSel.value = "vamp";
+  const progId = pSel.value;
   jamShape = shape3nps(keyPc, modeId);
   const prog = PROGRESSIONS.filter(p => p.id === progId)[0];
   const chords = custom ? parseChart(custom) : parseChart(prog.build(keyPc, modeId).join(" | "));
   if(!custom) $("#jamSong").hidden = true;
+  // every progression but the vamp has chords of its own, whatever the Mode says
+  const note = $("#jamProgNote");
+  note.hidden = !!custom || !prog.home;
+  if(!note.hidden) note.textContent = prog.name + " brings its own chords, so it doesn't follow the Mode. " +
+    MODE_BY_ID[prog.home].name + " sits closest to them. With chord tones on, the notes to change show as Swap as each chord comes round.";
   J.chords = chords; J.keyPc = keyPc;
   J.scalePcs = MODE_BY_ID[modeId].formula.map(i => (keyPc + i) % 12);
   if(J.idx >= chords.length || !Audio2.T.playing) J.idx = 0;
@@ -1619,6 +1667,7 @@ function bind(){
     if(S.tick) clearInterval(S.tick);
     Store.recordSession(partial, { bailed:true });
     S.plan = null; releaseWake();
+    Audio2.drone(0, false);
     toast("Logged " + partial + " min. Go and play.");
     go("jam");
   };
@@ -1644,8 +1693,18 @@ function bind(){
   $("#continueBtn").onclick = () => nextBlock();
 
   // jam
-  ["#jamKey","#jamMode","#jamProg","#jamGroove"].forEach(id => $(id).onchange = applyJam);
-  $("#jamChords").oninput = applyJam;
+  ["#jamMode","#jamGroove"].forEach(id => $(id).onchange = applyJam);
+  // a new key drops a classic's chart, which was in the song's key
+  $("#jamKey").onchange = () => { if(J.fromClassic) clearJamChart(); applyJam(); };
+  // a new progression replaces whatever chart was there, and starts from the mode that fits its chords
+  $("#jamProg").onchange = () => {
+    clearJamChart();
+    const prog = PROGRESSIONS.filter(p => p.id === $("#jamProg").value)[0];
+    if(prog && prog.home) $("#jamMode").value = prog.home;
+    applyJam();
+  };
+  // once the chart is edited by hand it's no longer the song's, so the song's banner goes
+  $("#jamChords").oninput = () => { if(J.fromClassic){ J.fromClassic = false; $("#jamSong").hidden = true; } applyJam(); };
   $("#jamBpm").oninput = () => { Audio2.setBpm(parseInt($("#jamBpm").value,10)); $("#jamBpmReadout").textContent = Audio2.T.bpm + " BPM"; };
   $$("#jamSeg button").forEach(b => b.onclick = () => {
     Audio2.T.mode = b.dataset.mode;

@@ -194,15 +194,18 @@ function renderFretboard(shape, opts){
   const to   = shape.maxFret + 1;
   const n    = to - from + 1;
 
-  const PL = 30, PR = 12, PT = 24, PB = 30, FW = 60, SG = 29;   // room for rings on the outer strings
+  const open = shape.minFret === 0;                              // open strings sit to the left of the nut
+  const PL = open ? 60 : 30, PR = 12, PT = 24, PB = 30, FW = 60, SG = 29;   // room for rings on the outer strings
   const W = PL + n*FW + PR;
   const H = PT + 5*SG + PB;
   const cellX = k => PL + k*FW;
-  const noteX = f => PL + (f - from + 0.5)*FW;
+  const noteX = f => f === 0 ? PL - 20 : PL + (f - from + 0.5)*FW;
   const strY  = s => PT + (5 - s)*SG;
 
   const p = [];
-  p.push('<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Fretboard diagram" xmlns="http://www.w3.org/2000/svg">');
+  // a run through several boxes is too wide to squeeze into the usual width, so it scrolls instead
+  const wide = shape.slides ? ' style="min-width:'+Math.max(520, Math.round(W*0.8))+'px"' : '';
+  p.push('<svg viewBox="0 0 '+W+' '+H+'"'+wide+' role="img" aria-label="Fretboard diagram" xmlns="http://www.w3.org/2000/svg">');
   p.push('<defs>');
   p.push('<linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">');
   p.push('<stop offset="0" stop-color="#4a2f20"/><stop offset="0.45" stop-color="#382216"/>');
@@ -244,7 +247,7 @@ function renderFretboard(shape, opts){
   for(let s=0;s<6;s++){
     const y = strY(s), w = 3.1 - s*0.36;
     p.push('<rect x="'+PL+'" y="'+(y-w/2)+'" width="'+(n*FW)+'" height="'+w.toFixed(2)+'" fill="url(#strg)"/>');
-    p.push('<text x="'+(PL-9)+'" y="'+(y+4)+'" text-anchor="middle" font-family="Saira Condensed, sans-serif" font-size="12" fill="#6e6355">'+STRING_NAMES[s]+'</text>');
+    p.push('<text x="'+(open ? 9 : PL-9)+'" y="'+(y+4)+'" text-anchor="middle" font-family="Saira Condensed, sans-serif" font-size="12" fill="#6e6355">'+STRING_NAMES[s]+'</text>');
   }
 
   // fret numbers
@@ -271,6 +274,12 @@ function renderFretboard(shape, opts){
       }
     });
   }
+
+  // slides between boxes: a bar joining the two notes, under the dots
+  (shape.slides || []).forEach(sl => {
+    const a = shape.notes[sl[0]], b = shape.notes[sl[1]], y = strY(a.string);
+    p.push('<line x1="'+noteX(a.fret)+'" y1="'+y+'" x2="'+noteX(b.fret)+'" y2="'+y+'" stroke="#ff9d2f" stroke-width="5" stroke-linecap="round" opacity="0.6"/>');
+  });
 
   // notes
   const hiSet = opts.highlightSet || null;
@@ -300,7 +309,7 @@ function renderFretboard(shape, opts){
       const isChordRoot = pc === chordRootPc;
       p.push('<circle cx="'+x+'" cy="'+y+'" r="'+(isChordRoot?16.5:15.5)+'" fill="none" stroke="#7fb489" stroke-width="'+(isChordRoot?3.4:2.2)+'"/>');
     }
-    if(isHi) p.push('<circle cx="'+x+'" cy="'+y+'" r="16" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.55"/>');
+    if(isHi) p.push('<circle class="hi" cx="'+x+'" cy="'+y+'" r="16" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.55"/>');
     p.push('<g opacity="'+op+'"><circle cx="'+x+'" cy="'+y+'" r="11.5" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"'+dash+'/>');
     const txt = labelMode === "deg" ? nt.label : nt.name;
     p.push('<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-family="Saira Condensed, sans-serif" font-weight="600" font-size="'+(txt.length>2?10:12)+'" fill="'+tc+'">'+txt+'</text></g>');
@@ -361,13 +370,15 @@ function blues12(rootPc){
   const I=k(0)+"7", IV=k(5)+"7", V=k(7)+"7";
   return [I,IV,I,I, IV,IV,I,I, V,IV,I,V];
 }
+/* Only the vamp is built from the mode. The others bring their own chords, and
+   `home` is the mode that sits closest to them. */
 const PROGRESSIONS = [
   { id:"vamp",   name:"Modal vamp (follows the mode)", build:(r,m)=>modalVamp(r,m) },
-  { id:"blues",  name:"12-bar blues",                  build:(r)=>blues12(r) },
-  { id:"1564",   name:"I – V – vi – IV", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(7),k(9)+"m",k(5)];} },
-  { id:"251",    name:"ii – V – I",           build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(2)+"m7",k(7)+"7",k(0)+"maj7",k(0)+"maj7"];} },
-  { id:"minblues",name:"Minor blues",                  build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0)+"m7",k(0)+"m7",k(0)+"m7",k(0)+"m7",k(5)+"m7",k(5)+"m7",k(0)+"m7",k(0)+"m7",k(8)+"7",k(7)+"7",k(0)+"m7",k(7)+"7"];} },
-  { id:"1451",   name:"I – IV – V",           build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(0),k(5),k(7)];} }
+  { id:"blues",  name:"12-bar blues", home:"mixolydian", build:(r)=>blues12(r) },
+  { id:"1564",   name:"I – V – vi – IV", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(7),k(9)+"m",k(5)];} },
+  { id:"251",    name:"ii – V – I", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(2)+"m7",k(7)+"7",k(0)+"maj7",k(0)+"maj7"];} },
+  { id:"minblues",name:"Minor blues", home:"aeolian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0)+"m7",k(0)+"m7",k(0)+"m7",k(0)+"m7",k(5)+"m7",k(5)+"m7",k(0)+"m7",k(0)+"m7",k(8)+"7",k(7)+"7",k(0)+"m7",k(7)+"7"];} },
+  { id:"1451",   name:"I – IV – V", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(0),k(5),k(7)];} }
 ];
 
 /* ============================================================
@@ -504,6 +515,72 @@ function pentaShape(rootPc, quality, wide){
 }
 function pentaPcs(rootPc, quality){ return (PENTA[quality]||PENTA.minor).formula.map(i => (rootPc+i)%12); }
 
+/* ---------- linked boxes ----------
+   The five boxes overlap: the upper note of one box on a string is the lower
+   note of the next box up. A linked run travels through several of them, so its
+   shape is a path rather than one box. Each note is addressed as
+   [box, string, 0|1]: box 0 is the root box (the one pentaShape draws), 1 is the
+   next box up the neck, -1 the one below, and 0|1 picks the lower or upper of
+   that box's two notes on the string. Addressed like that, a note can't fall
+   outside the scale in any key. */
+function linkShape(rootPc, quality, path){
+  const P = PENTA[quality] || PENTA.minor;
+  const stepMidi = n => P.formula[((n%5)+5)%5] + 12*Math.floor(n/5);
+  let rootFret = (((rootPc - 4) % 12) + 12) % 12;
+  if(rootFret === 0) rootFret = 12;
+  const fretOf = (e, rf) => OPEN_MIDI[0] + rf + stepMidi(e[0] + 2*e[1] + e[2]) - OPEN_MIDI[e[1]];
+  // a path that would run off the nut moves up an octave; one that would run off the top comes down one
+  const reach = rf => path.map(e => fretOf(e, rf));
+  if(Math.min.apply(null, reach(rootFret)) < 0) rootFret += 12;
+  else if(Math.max.apply(null, reach(rootFret)) > 20 && Math.min.apply(null, reach(rootFret)) >= 12) rootFret -= 12;
+  const notes = [], at = [], seen = {};
+  path.forEach(e => {
+    const string = e[1], fret = fretOf(e, rootFret), key = string + ":" + fret;
+    if(seen[key] == null){
+      seen[key] = notes.length;
+      const d = (((e[0] + 2*e[1] + e[2]) % 5) + 5) % 5, midi = OPEN_MIDI[string] + fret;
+      notes.push({ string, fret, midi, degree:d, label:P.labels[d], name:noteName(midi % 12, rootPc), root:d === 0 });
+    }
+    at.push(seen[key]);
+  });
+  // the pairs of notes joined by a slide somewhere along the path, for the diagram.
+  // A shift that meets an open string can't be slid, so it's only noted.
+  const slides = [];
+  let openShift = false;
+  for(let i=1;i<path.length;i++){
+    const a = at[i-1], b = at[i];
+    if(!linkShift(path[i-1], path[i]) || a === b) continue;
+    if(!notes[a].fret || !notes[b].fret){ openShift = true; continue; }
+    if(!slides.some(s => (s[0] === a && s[1] === b) || (s[0] === b && s[1] === a))) slides.push([a, b]);
+  }
+  const boxes = [];
+  path.forEach(e => { if(boxes.indexOf(e[0]) === -1) boxes.push(e[0]); });
+  return { notes, at, slides, openShift, boxes:boxes.length, rootPc, quality,
+    minFret: Math.min.apply(null, notes.map(n=>n.fret)),
+    maxFret: Math.max.apply(null, notes.map(n=>n.fret)) };
+}
+/* Staying on a string while changing box is the position shift: a slide. */
+function linkShift(a, b){ return a[1] === b[1] && a[0] !== b[0]; }
+/* Neighbouring scale notes climbing from the low E string, `counts` of them on
+   each string. A third note on a string belongs to the next box up, so that's
+   where the hand shifts: into the last note of the string, or with `early`
+   into the second, which is how the first finger does it. */
+function linkLadder(box, counts, early){
+  const path = [];
+  counts.forEach((c, s) => {
+    path.push([box, s, 0]);
+    if(early) for(let j=2;j<c;j++) path.push([++box, s, 0]);
+    path.push([box, s, 1]);
+    if(!early) for(let j=2;j<c;j++) path.push([++box, s, 1]);
+  });
+  return path;
+}
+/* The lowest root on a path, where a run comes home. */
+function pathRoot(path){
+  for(let i=0;i<path.length;i++) if((((path[i][0] + 2*path[i][1] + path[i][2]) % 5) + 5) % 5 === 0) return i;
+  return 0;
+}
+
 const RUN_GEN = {
   sixesDown(n){ const q=[]; for(let s=n-1; s-5>=0; s-=2) for(let k=0;k<6;k++) q.push(s-k); return q; },
   sixesUp(n){   const q=[]; for(let s=0; s+5<n; s+=2)   for(let k=0;k<6;k++) q.push(s+k); return q; },
@@ -519,6 +596,65 @@ const RUN_GEN = {
     const q=[];
     for(let r=0;r<4;r++) for(let k=0;k<6;k++) q.push(n-1-k);
     for(let i=n-7;i>=0;i--){ if(i % 5 === 0){ q.push(i); break; } }
+    return q;
+  },
+  /* The last two are for runs that link boxes. They read the path as well as its length. */
+  // up from the root to the top and back down past it, so the loop restarts on the root
+  upDown(n, path){
+    const r = pathRoot(path), q = [];
+    for(let i=r;i<n;i++) q.push(i);
+    for(let i=n-2;i>=(r ? 0 : 1);i--) q.push(i);
+    return q;
+  },
+  // top to bottom, then home to the root
+  downHome(n, path){
+    const r = pathRoot(path), q = [];
+    for(let i=n-1;i>=0;i--) q.push(i);
+    if(r !== 0) q.push(r);
+    return q;
+  }
+};
+/* Paths for the linked runs. Box 0 is the root box, -1 the one below it. */
+const LINK = {
+  // two notes, then three with a slide into the third: the diagonal from the box below the root to two above
+  diagonal: linkLadder(-1, [2,3,2,3,2,3]),
+  // three notes, then two: one extra note on every other string, from the root box up through the next three
+  seam: linkLadder(0, [3,2,3,2,3,2]),
+  // the same three-then-two, started a box lower and shifted with the first finger: each pair of strings is one octave
+  octaves: linkLadder(-1, [3,2,3,2,3,2], true),
+  // four notes on the top two strings, box by box up the neck, then back down two
+  topTwo(){
+    const q = [];
+    [-1,0,1,2].forEach(p => q.push([p,4,0],[p,4,1],[p,5,0],[p,5,1]));
+    [1,0].forEach(p => q.push([p,5,1],[p,5,0],[p,4,1],[p,4,0]));
+    return q;
+  },
+  // the top three strings only: two fours down a box, the same in the box below, and again, then the root
+  topThree(){
+    const q = [];
+    [2,1,0].forEach(p => q.push([p,5,1],[p,5,0],[p,4,1],[p,4,0], [p,4,1],[p,4,0],[p,3,1],[p,3,0]));
+    q.push([0,2,1]);
+    return q;
+  },
+  // up the top three strings of one box, slide, down the next: the root box and the two above it
+  zigzag(){
+    const up = p => [[p,3,0],[p,3,1],[p,4,0],[p,4,1],[p,5,0],[p,5,1]];
+    return up(0).concat(up(1).reverse(), up(2), up(1).reverse());
+  },
+  // the five notes from the root, two-two-one across three strings, an octave higher in each box, and back
+  fives(){
+    const up = [];
+    [0,1,2].forEach(o => { const s = 2*o;
+      up.push([o,s,0],[o,s,1],[o,s+1,0],[o,s+1,1], s+2 < 6 ? [o,s+2,0] : [o+1,s+1,1]); });
+    return up.concat(up.slice().reverse());
+  },
+  // a group across three strings, then again a string lower and a box lower, down to the low root
+  cascade(per){
+    const q = [];
+    [[2,5],[1,4],[0,3],[0,2]].forEach(g => { const p = g[0], s = g[1];
+      q.push([p,s,1],[p,s,0],[p,s-1,1],[p,s-1,0],[p,s-2,1]);
+      if(per === 6) q.push([p,s-2,0]); });
+    q.push(per === 6 ? [0,2,1] : [0,0,0]);   // sixes end on the low root, so they finish an octave up
     return q;
   }
 };
@@ -543,20 +679,74 @@ const RUNS = [
     tip:"EJ covers the neck by stretching the pentatonic across 5–6 frets and using economy picking. When the next note is on a higher string, let the pick keep travelling in that direction." },
   { id:"ej6down", name:"Wide-box sixes, cascading", who:"Eric Johnson", level:3, shape:"wide", npb:6, gen:RUN_GEN.sixesDown, start:48,
     how:"The same wide box with six-note groups coming down. Where the pick is already heading to the next string, sweep it.",
-    tip:"This is the cascading EJ sound. Keep every note the same volume. Pentatonic runs only sound fast when the notes are even." }
+    tip:"This is the cascading EJ sound. Keep every note the same volume. Pentatonic runs only sound fast when the notes are even." },
+  /* linked: these leave the box and travel through its neighbours */
+  { id:"diag4", name:"Diagonal climb", who:"Bonamassa", level:1, shape:"link", npb:4, path:LINK.diagonal, pathMajor:LINK.seam, gen:RUN_GEN.upDown, start:60,
+    how:"Strings take two notes and three notes in turn, in 16ths. On a three-note string the third note is a slide up with your ring finger, and it carries your hand into the next box. Climb to the top and come back the same way.",
+    tip:"This diagonal is the standard way out of the box in blues-rock: first and third fingers only, and three slides cover four boxes. Pick the note before each slide and let the slide sound the next one, on time." },
+  { id:"top2", name:"Two-string climb", who:"Bonamassa", level:1, shape:"link", npb:4, path:LINK.topTwo(), start:60,
+    how:"Four notes on the top two strings, then move up a box and play the next four. Climb through four boxes, slide down off the top note, and come back down two.",
+    tip:"Bonamassa says he learned every phrase in every key, all over the neck. Two strings take the string-crossing out of it, so all your attention goes on where the next box starts. Then change the key and do it again." },
+  { id:"seam4", name:"One extra note", who:"Bonamassa", level:2, shape:"link", npb:4, path:LINK.seam, pathMajor:LINK.diagonal, picked:true, gen:RUN_GEN.upDown, start:56,
+    how:"Two notes per string in 16ths, but on every other string play one extra note before you cross. That note belongs to the next box, and your hand goes with it. Up through four boxes and back.",
+    tip:"This is how Bonamassa describes joining the boxes: take one extra note along the string. He alternate-picks every note, so each three-note string flips which stroke starts the next one. Go slowly until that stops catching you out." },
+  { id:"top3", name:"Top strings, box by box", who:"Bonamassa", level:2, shape:"link", npb:4, path:LINK.topThree(), start:56,
+    how:"Stay on the top three strings. Play two groups of four down through a box, drop your hand to the box below and do the same, three boxes in all. Land on the root, one string down.",
+    tip:"Bonamassa's long lines travel along the neck instead of across it: a few notes from one box, shift, a few from the next, in fours, every note picked. Move your hand between clicks so the first note in the new box lands on the beat." },
+  { id:"zigzag", name:"Zig-zag with slides", who:"Bonamassa", level:3, shape:"link", npb:6, path:LINK.zigzag(), start:46,
+    how:"Six notes up the top three strings of the root box, then slide up a box and come down six. Slide again and climb the third box, then slide back and come down the middle one. Every slide joins the last note of one click to the first note of the next.",
+    tip:"Changing direction and changing box at the same moment is what stops a run sounding like a scale exercise. Let the slide do the travelling, and make sure it arrives on the click." },
+  { id:"ej5oct", name:"Fives in three octaves", who:"Eric Johnson", level:2, shape:"link", npb:5, path:LINK.fives(), start:48,
+    how:"The five notes of the scale from the root, five to a click: two on one string, two on the next, one on the third. Shift up that third string and play the same five an octave higher, twice. The last five runs out of strings, so its fifth note is a slide up the top string. Then come back down the same way.",
+    tip:"Each octave starts on the string the last one finished on, so the shift is one finger moving up one string. Count \"hip-po-pot-a-mus\" and hear the root on every click on the way up." },
+  { id:"ej5slide", name:"Slide-shift fives", who:"Eric Johnson", level:2, shape:"link", npb:5, path:LINK.octaves, gen:RUN_GEN.downHome, start:46,
+    how:"Five notes coming down: two on one string, two on the next, then slide the lower finger down the same string into the box below. The slide is the fifth note. Three fives through three octaves, then land on the root.",
+    tip:"This is Johnson's basic way down the neck: a down-stroke, an up-stroke, then a slide that isn't picked. The slide re-plants your hand a box lower, ready to start the next string on a down-stroke. Keep it light and quick." },
+  { id:"ej5link", name:"Fives down through three boxes", who:"Eric Johnson", level:3, shape:"link", npb:5, path:LINK.cascade(5), start:44,
+    how:"Five notes across three strings: two, two, one. Start the next five on the middle string of the one before. The first three fives drop a box each time. The last stays in the root box and lands on the root.",
+    tip:"Johnson picks fives down-up-down-up-down. The last down-stroke keeps travelling into the next string, where the following five begins, so the restart costs nothing. Practise that one sweep on its own first." },
+  { id:"ej6diag", name:"Sixes down through three boxes", who:"Eric Johnson", level:3, shape:"link", npb:6, path:LINK.cascade(6), start:44,
+    how:"Six notes across three strings, two on each. The first three sixes drop a string and a box each time. The fourth stays in the root box and runs down to the low root. Finish by jumping up an octave.",
+    tip:"Strict down-up on every string, so every string change comes after an up-stroke. Johnson tends to save his sixes for the bottom box, at the end of a cascade. This drill puts one in every box so the shifts get the practice." }
 ];
 const RUN_BY_ID = {}; RUNS.forEach(r => RUN_BY_ID[r.id] = r);
+
+/* The shape and the note order for a run in a key: one box, the wide box, or a path through several. */
+function buildRun(def, rootPc, quality){
+  if(def.path){
+    // the two ladders swap in major, so the one with whole-tone slides stays the two-finger diagonal
+    const p = (quality === "major" && def.pathMajor) || def.path, shape = linkShape(rootPc, quality, p);
+    const order = def.gen ? def.gen(p.length, p) : p.map((e, i) => i);
+    // slideAt[k]: the move from note k to the one after it is a position shift (an open string can't slide)
+    const fret = i => shape.notes[shape.at[i]].fret;
+    const slideAt = order.map((i, k) => {
+      const j = order[k+1];
+      return !def.picked && j != null && Math.abs(i - j) === 1 && linkShift(p[i], p[j]) && fret(i) !== fret(j) && fret(i) > 0 && fret(j) > 0;
+    });
+    if(order.length % def.npb === 1) slideAt[order.length - 2] = false;      // a landing note is picked, not slid into
+    if(def.picked){ shape.slides = []; shape.openShift = false; }           // every note picked: the shifts aren't slides
+    return { shape, seq: order.map(i => shape.at[i]), slideAt };
+  }
+  const shape = pentaShape(rootPc, quality, def.shape === "wide");
+  return { shape, seq: def.gen(shape.notes.length), slideAt: null };
+}
+function runShapeLabel(def, shape){
+  if(def.path) return shape.boxes + " boxes linked · frets " + shape.minFret + "–" + shape.maxFret;
+  return def.shape === "wide" ? "wide box" : "box shape";
+}
 
 function runGroup(run, step){
   const npb = run.def.npb, groups = Math.ceil(run.seq.length / npb);
   const g = ((step % groups) + groups) % groups;
   return run.seq.slice(g*npb, g*npb + npb);
 }
-function runTab(shape, seq, npb){
+function runTab(shape, seq, npb, slideAt){
   const lines = [[],[],[],[],[],[]];
   seq.forEach((ni, k) => {
     const nt = shape.notes[ni], f = String(nt.fret);
-    for(let s=0;s<6;s++) lines[s].push((s === nt.string ? f : "-".repeat(f.length)) + "-");
+    // a slide into the next note is written the way tab writes it: 7/9 going up, 9\7 coming down
+    const join = slideAt && slideAt[k] ? (shape.notes[seq[k+1]].fret > nt.fret ? "/" : "\\") : "-";
+    for(let s=0;s<6;s++) lines[s].push(s === nt.string ? f + join : "-".repeat(f.length) + "-");
     if((k+1) % npb === 0 && k < seq.length-1) for(let s=0;s<6;s++) lines[s].push("|-");
   });
   return [5,4,3,2,1,0].map(s => STRING_NAMES[s] + "|-" + lines[s].join("") + "|").join("\n");
