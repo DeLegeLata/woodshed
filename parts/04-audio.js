@@ -155,10 +155,12 @@ const Audio2 = (function(){
       {b:1,i:"hat",v:0.5},{b:3,i:"hat",v:0.5},
       {b:0,i:"bassdrumfeather",v:0.25}
     ]},
-    ballad: { name:"Slow 6/8", swing:0, beats:3, comp:"push", ev:[
-      {b:0,i:"kick"},{b:0,i:"hat"},{b:0.5,i:"hat",v:0.5},
-      {b:1,i:"hat",v:0.7},{b:1.5,i:"hat",v:0.5},
-      {b:2,i:"snare"},{b:2,i:"hat",v:0.7},{b:2.5,i:"hat",v:0.5}
+    /* played as a slow 12/8: four beats, each split in three, which is two bars of 6/8 to the bar */
+    ballad: { name:"Slow 6/8", swing:0, beats:4, comp:"push", ev:[
+      {b:0,i:"kick"},{b:0,i:"hat"},{b:0.333,i:"hat",v:0.45},{b:0.667,i:"hat",v:0.55},
+      {b:1,i:"snare"},{b:1,i:"hat",v:0.7},{b:1.333,i:"hat",v:0.45},{b:1.667,i:"hat",v:0.55},
+      {b:2,i:"kick"},{b:2,i:"hat"},{b:2.333,i:"hat",v:0.45},{b:2.667,i:"hat",v:0.55},
+      {b:3,i:"snare"},{b:3,i:"hat",v:0.7},{b:3.333,i:"hat",v:0.45},{b:3.667,i:"hat",v:0.55}
     ]},
     none: { name:"Click only", swing:0, beats:4, comp:"none", ev:[] }
   };

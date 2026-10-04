@@ -200,7 +200,7 @@ p:last-child{margin-bottom:0}
   display:none;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;
   border:1px dashed var(--edge-hi);border-radius:8px;color:var(--cream-2);font-size:13px;
 }
-@media (orientation:portrait){ .rotate-hint.show{display:flex} }
+@media (orientation:portrait) and (pointer:coarse){ .rotate-hint.show{display:flex} }
 
 .seg{display:flex;border:1px solid var(--edge-hi);border-radius:8px;overflow:hidden}
 .seg button{
@@ -408,6 +408,34 @@ details.more[open] summary{margin-bottom:10px}
 .chartline span{padding:2px 6px;border-radius:4px}
 .chartline span.now{background:rgba(255,157,47,.2);color:var(--amber)}
 .chartline i{font-style:normal;color:var(--cream-3);padding:0 2px}
+/* ---------- neck view: a phone turned on its side ----------
+   The fretboard takes the whole screen and one strip of controls sits under it.
+   The app script sets body.neck and .stage, and only on a phone in landscape. */
+.neckbar{display:none}
+body.neck{overflow:hidden}
+.fretwrap.stage{
+  position:fixed;z-index:40;left:0;right:0;top:0;bottom:calc(54px + env(safe-area-inset-bottom));
+  padding:8px max(10px,env(safe-area-inset-right)) 4px max(10px,env(safe-area-inset-left));
+  border-radius:0;overflow:hidden;background:var(--tolex);
+}
+/* fitted to the screen both ways, so even a run through four boxes shows whole */
+.fretwrap.stage svg{min-width:0!important;width:100%;height:100%}
+body.neck .neckbar{
+  display:flex;align-items:center;gap:8px;position:fixed;z-index:41;left:0;right:0;bottom:0;
+  height:calc(54px + env(safe-area-inset-bottom));
+  padding:0 max(10px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(10px,env(safe-area-inset-left));
+  background:linear-gradient(180deg,var(--panel-2),var(--panel));border-top:1px solid var(--edge);
+}
+.neckbar .spacer{flex:1}
+.neckbar .btn{min-height:40px;padding:8px 12px;font-size:12px;flex:none;white-space:nowrap}
+.neckbar .btn.primary{min-width:84px}
+.neckbar .mono{font-size:12px;color:var(--cream-2);white-space:nowrap}
+.nk-info{display:flex;align-items:baseline;gap:10px;min-width:0}
+.nk-info b{font-size:17px;color:var(--cream)}
+.nk-info .legend{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nk-chord{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.nk-chord b{font-family:var(--f-legend);font-weight:700;font-size:24px;line-height:1;color:var(--amber)}
+.nk-chord span{font-family:var(--f-legend);font-size:14px;color:var(--cream-2)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -553,7 +581,7 @@ details.more[open] summary{margin-bottom:10px}
       </div>
       <div class="fretwrap" id="fretWrap"></div>
       <div class="fretkey" id="fretKey" hidden></div>
-      <div class="rotate-hint show">Turn your phone sideways for a full-width neck.</div>
+      <div class="rotate-hint show">Turn your phone sideways and the neck fills the screen.</div>
       <div class="row">
         <button class="btn quiet" id="guideBtn" style="flex:1">Guide me through it</button>
         <button class="btn quiet" id="listenBtn" style="flex:1">Hear it</button>
@@ -694,6 +722,7 @@ details.more[open] summary{margin-bottom:10px}
       </div>
       <div class="fretwrap" id="jamFret"></div>
       <div class="fretkey" id="jamFretKey" hidden></div>
+      <div class="rotate-hint show">Turn your phone sideways and the neck fills the screen.</div>
       <div class="stack-sm" id="jamTargets"></div>
       <button class="btn quiet wide" id="jamTonesBtn">Chord tones: on</button>
       <button class="btn primary wide" id="jamPlay">Play</button>
@@ -857,6 +886,7 @@ details.more[open] summary{margin-bottom:10px}
       <h2 id="runName"></h2>
       <div class="prose tiny" id="runHow"></div>
       <div class="fretwrap" id="runFret"></div>
+      <div class="rotate-hint show">Turn your phone sideways and the neck fills the screen.</div>
       <pre class="tab" id="runTab"></pre>
       <div class="note" id="runTip"></div>
       <div class="row" style="align-items:center">
@@ -921,6 +951,19 @@ details.more[open] summary{margin-bottom:10px}
       <button class="btn quiet wide" data-go="home">Back</button>
     </div>
   </section>
+
+  <!-- ============ NECK VIEW: the strip under the fretboard when the phone is on its side ============ -->
+  <div class="neckbar" id="neckBar">
+    <div class="nk-info"><b class="mono" id="nkClock"></b><span class="legend" id="nkLabel"></span></div>
+    <div class="nk-chord" id="nkChord" hidden><b id="nkNow"></b><span id="nkNext"></span></div>
+    <span class="spacer"></span>
+    <button class="btn quiet" id="nkDown" aria-label="Five BPM slower">&minus;5</button>
+    <span class="mono" id="nkBpm"></span>
+    <button class="btn quiet" id="nkUp" aria-label="Five BPM faster">+5</button>
+    <button class="btn quiet" id="nkGuide">Guide</button>
+    <button class="btn quiet" id="nkHear">Hear it</button>
+    <button class="btn primary" id="nkPlay">Play</button>
+  </div>
 
 </div>
 
@@ -1900,10 +1943,12 @@ const Audio2 = (function(){
       {b:1,i:"hat",v:0.5},{b:3,i:"hat",v:0.5},
       {b:0,i:"bassdrumfeather",v:0.25}
     ]},
-    ballad: { name:"Slow 6/8", swing:0, beats:3, comp:"push", ev:[
-      {b:0,i:"kick"},{b:0,i:"hat"},{b:0.5,i:"hat",v:0.5},
-      {b:1,i:"hat",v:0.7},{b:1.5,i:"hat",v:0.5},
-      {b:2,i:"snare"},{b:2,i:"hat",v:0.7},{b:2.5,i:"hat",v:0.5}
+    /* played as a slow 12/8: four beats, each split in three, which is two bars of 6/8 to the bar */
+    ballad: { name:"Slow 6/8", swing:0, beats:4, comp:"push", ev:[
+      {b:0,i:"kick"},{b:0,i:"hat"},{b:0.333,i:"hat",v:0.45},{b:0.667,i:"hat",v:0.55},
+      {b:1,i:"snare"},{b:1,i:"hat",v:0.7},{b:1.333,i:"hat",v:0.45},{b:1.667,i:"hat",v:0.55},
+      {b:2,i:"kick"},{b:2,i:"hat"},{b:2.333,i:"hat",v:0.45},{b:2.667,i:"hat",v:0.55},
+      {b:3,i:"snare"},{b:3,i:"hat",v:0.7},{b:3.333,i:"hat",v:0.45},{b:3.667,i:"hat",v:0.55}
     ]},
     none: { name:"Click only", swing:0, beats:4, comp:"none", ev:[] }
   };
@@ -3317,6 +3362,7 @@ function go(name){
   if(name === "chords")   renderChords();
   if(name !== "chords" && name !== "block" && RH.changeIv){ clearInterval(RH.changeIv); RH.changeIv = null; }
   hearLabels();
+  neckApply();
 }
 
 /* ---------- drill content ---------- */
@@ -5250,10 +5296,110 @@ function scheduleReminder(){
   else if(Notification.permission === "default") Notification.requestPermission().then(p => { if(p === "granted") run(); });
 }
 
+/* ---------- neck view: a phone turned on its side ----------
+   The fretboard of the screen you're on fills the display, with one strip of controls under it.
+   The strip presses that screen's own buttons and copies their labels, so nothing is wired twice. */
+const NECK = {
+  block:{ wrap:"#fretWrap", label:"#fretLabel", bpm:"#bpmReadout",    play:"#playBtn", guide:"#guideBtn", hear:"#listenBtn", down:"#bpmDown", up:"#bpmUp" },
+  runs: { wrap:"#runFret",  label:"#runLabel",  bpm:"#runBpmReadout", play:"#runPlay", guide:"#runGuide", hear:"#runHear",   down:"#runDown", up:"#runUp" },
+  jam:  { wrap:"#jamFret",  bpm:"#jamBpmReadout", play:"#jamPlay", slider:"#jamBpm" }
+};
+const neckMQ = window.matchMedia("(orientation:landscape) and (max-height:540px) and (pointer:coarse)");
+let neckOn = null, neckFull = false;
+/* The screen's entry in NECK if it has a fretboard showing, else null. */
+function neckScreen(){
+  const cfg = NECK[screen];
+  return cfg && !(screen === "block" && $("#fretCard").hidden) ? cfg : null;
+}
+function neckApply(){
+  const cfg = neckMQ.matches ? neckScreen() : null, was = neckOn;
+  if(cfg === was) return;
+  if(was) $(was.wrap).classList.remove("stage");
+  neckOn = cfg;
+  document.body.classList.toggle("neck", !!cfg);
+  if(cfg){
+    $(cfg.wrap).classList.add("stage");
+    // arriving by a tap (the rotation asks for itself, in boot)
+    if(navigator.userActivation && navigator.userActivation.isActive) neckFullscreen(true);
+    if(!was) neckLoop();
+  } else {
+    neckFullscreen(false);
+    // back in the page the diagram scrolls again, so open it where the run starts
+    if(screen === "runs"){ drawRun(true); drawRun(); }
+    else if(screen === "block"){ const b = currentBlock(); if(b && b.run && !S.guide) drawFret(true); drawFret(); }
+  }
+}
+function neckPaint(){
+  const cfg = neckOn; if(!cfg) return;
+  const txt = sel => sel ? $(sel).textContent : "";
+  const set = (sel, v) => { const el = $(sel); if(el.textContent !== v) el.textContent = v; };
+  set("#nkClock", screen === "block" ? txt("#blockClock") : "");
+  set("#nkLabel", screen === "jam" ? noteName(J.keyPc, J.keyPc) + " " + MODE_BY_ID[$("#jamMode").value].name : txt(cfg.label));
+  set("#nkBpm", txt(cfg.bpm));
+  set("#nkPlay", /stop/i.test(txt(cfg.play)) ? "Stop" : "Play");
+  $("#nkGuide").hidden = !cfg.guide;
+  $("#nkHear").hidden = !cfg.hear;
+  if(cfg.guide) set("#nkGuide", /stop/i.test(txt(cfg.guide)) ? "Stop guide" : "Guide");
+  if(cfg.hear) set("#nkHear", txt(cfg.hear));
+  // the chord sounding now and the one after it, while the band is following a chart
+  let now = "", next = "";
+  if(Audio2.T.playing && Audio2.T.mode === "band"){
+    if(screen === "block" && !$("#bandCard").hidden){ now = txt("#chordNow"); next = txt("#chordNext"); }
+    else if(screen === "jam" && J.chords.length){
+      now = J.chords[J.idx % J.chords.length].label;
+      next = J.chords.length > 1 ? J.chords[(J.idx + 1) % J.chords.length].label : "";
+    }
+  }
+  $("#nkChord").hidden = !now;
+  set("#nkNow", now);
+  set("#nkNext", next && next !== "—" ? "then " + next : "");
+}
+function neckLoop(){ if(!neckOn) return; neckPaint(); requestAnimationFrame(neckLoop); }
+/* A page may only go full screen from a tap or from the rotation itself, so both are tried.
+   Phones that don't allow it at all (iPhone) just get the edge-to-edge layout. */
+function neckFullscreen(on){
+  const el = document.documentElement;
+  if(on){
+    if(document.fullscreenElement || !el.requestFullscreen) return;
+    const p = el.requestFullscreen({ navigationUI:"hide" });
+    if(p && p.then) p.then(() => { neckFull = true; }, () => {});
+  } else if(neckFull){
+    neckFull = false;
+    if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  }
+}
+function bindNeck(){
+  const press = key => () => { const c = neckOn; if(c && c[key]) $(c[key]).click(); neckPaint(); };
+  $("#nkPlay").onclick = press("play");
+  $("#nkGuide").onclick = press("guide");
+  $("#nkHear").onclick = press("hear");
+  const nudge = d => () => {
+    const c = neckOn; if(!c) return;
+    if(c.slider){ const s = $(c.slider); s.value = parseInt(s.value, 10) + d; s.oninput(); }
+    else $(d < 0 ? c.down : c.up).click();
+    neckPaint();
+  };
+  $("#nkDown").onclick = nudge(-5);
+  $("#nkUp").onclick = nudge(5);
+  // the media query is the trigger; the resize is a second chance for browsers that are slow to report it
+  if(neckMQ.addEventListener) neckMQ.addEventListener("change", neckApply); else neckMQ.addListener(neckApply);
+  window.addEventListener("resize", neckApply);
+  document.addEventListener("fullscreenchange", () => { if(!document.fullscreenElement) neckFull = false; });
+  // `screen` is the app's own variable here, so the real one is window.screen
+  const so = window.screen.orientation;
+  if(so && so.addEventListener) so.addEventListener("change", () => {
+    const side = so.type.indexOf("landscape") === 0;
+    const phone = Math.min(window.screen.width, window.screen.height) <= 540;
+    if(side && phone && neckScreen()) neckFullscreen(true);
+    else if(!side) neckFullscreen(false);
+  });
+}
+
 /* ---------- boot ---------- */
 function boot(){
   Store.load();
   bind();
+  bindNeck();
   S.labelMode = Store.load().labelMode || "deg";
   go("home");
   scheduleReminder();

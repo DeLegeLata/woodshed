@@ -139,7 +139,7 @@
       </div>
       <div class="fretwrap" id="fretWrap"></div>
       <div class="fretkey" id="fretKey" hidden></div>
-      <div class="rotate-hint show">Turn your phone sideways for a full-width neck.</div>
+      <div class="rotate-hint show">Turn your phone sideways and the neck fills the screen.</div>
       <div class="row">
         <button class="btn quiet" id="guideBtn" style="flex:1">Guide me through it</button>
         <button class="btn quiet" id="listenBtn" style="flex:1">Hear it</button>
@@ -280,6 +280,7 @@
       </div>
       <div class="fretwrap" id="jamFret"></div>
       <div class="fretkey" id="jamFretKey" hidden></div>
+      <div class="rotate-hint show">Turn your phone sideways and the neck fills the screen.</div>
       <div class="stack-sm" id="jamTargets"></div>
       <button class="btn quiet wide" id="jamTonesBtn">Chord tones: on</button>
       <button class="btn primary wide" id="jamPlay">Play</button>
@@ -443,6 +444,7 @@
       <h2 id="runName"></h2>
       <div class="prose tiny" id="runHow"></div>
       <div class="fretwrap" id="runFret"></div>
+      <div class="rotate-hint show">Turn your phone sideways and the neck fills the screen.</div>
       <pre class="tab" id="runTab"></pre>
       <div class="note" id="runTip"></div>
       <div class="row" style="align-items:center">
@@ -507,5 +509,18 @@
       <button class="btn quiet wide" data-go="home">Back</button>
     </div>
   </section>
+
+  <!-- ============ NECK VIEW: the strip under the fretboard when the phone is on its side ============ -->
+  <div class="neckbar" id="neckBar">
+    <div class="nk-info"><b class="mono" id="nkClock"></b><span class="legend" id="nkLabel"></span></div>
+    <div class="nk-chord" id="nkChord" hidden><b id="nkNow"></b><span id="nkNext"></span></div>
+    <span class="spacer"></span>
+    <button class="btn quiet" id="nkDown" aria-label="Five BPM slower">&minus;5</button>
+    <span class="mono" id="nkBpm"></span>
+    <button class="btn quiet" id="nkUp" aria-label="Five BPM faster">+5</button>
+    <button class="btn quiet" id="nkGuide">Guide</button>
+    <button class="btn quiet" id="nkHear">Hear it</button>
+    <button class="btn primary" id="nkPlay">Play</button>
+  </div>
 
 </div>

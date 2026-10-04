@@ -38,6 +38,7 @@ function go(name){
   if(name === "chords")   renderChords();
   if(name !== "chords" && name !== "block" && RH.changeIv){ clearInterval(RH.changeIv); RH.changeIv = null; }
   hearLabels();
+  neckApply();
 }
 
 /* ---------- drill content ---------- */
@@ -1971,10 +1972,110 @@ function scheduleReminder(){
   else if(Notification.permission === "default") Notification.requestPermission().then(p => { if(p === "granted") run(); });
 }
 
+/* ---------- neck view: a phone turned on its side ----------
+   The fretboard of the screen you're on fills the display, with one strip of controls under it.
+   The strip presses that screen's own buttons and copies their labels, so nothing is wired twice. */
+const NECK = {
+  block:{ wrap:"#fretWrap", label:"#fretLabel", bpm:"#bpmReadout",    play:"#playBtn", guide:"#guideBtn", hear:"#listenBtn", down:"#bpmDown", up:"#bpmUp" },
+  runs: { wrap:"#runFret",  label:"#runLabel",  bpm:"#runBpmReadout", play:"#runPlay", guide:"#runGuide", hear:"#runHear",   down:"#runDown", up:"#runUp" },
+  jam:  { wrap:"#jamFret",  bpm:"#jamBpmReadout", play:"#jamPlay", slider:"#jamBpm" }
+};
+const neckMQ = window.matchMedia("(orientation:landscape) and (max-height:540px) and (pointer:coarse)");
+let neckOn = null, neckFull = false;
+/* The screen's entry in NECK if it has a fretboard showing, else null. */
+function neckScreen(){
+  const cfg = NECK[screen];
+  return cfg && !(screen === "block" && $("#fretCard").hidden) ? cfg : null;
+}
+function neckApply(){
+  const cfg = neckMQ.matches ? neckScreen() : null, was = neckOn;
+  if(cfg === was) return;
+  if(was) $(was.wrap).classList.remove("stage");
+  neckOn = cfg;
+  document.body.classList.toggle("neck", !!cfg);
+  if(cfg){
+    $(cfg.wrap).classList.add("stage");
+    // arriving by a tap (the rotation asks for itself, in boot)
+    if(navigator.userActivation && navigator.userActivation.isActive) neckFullscreen(true);
+    if(!was) neckLoop();
+  } else {
+    neckFullscreen(false);
+    // back in the page the diagram scrolls again, so open it where the run starts
+    if(screen === "runs"){ drawRun(true); drawRun(); }
+    else if(screen === "block"){ const b = currentBlock(); if(b && b.run && !S.guide) drawFret(true); drawFret(); }
+  }
+}
+function neckPaint(){
+  const cfg = neckOn; if(!cfg) return;
+  const txt = sel => sel ? $(sel).textContent : "";
+  const set = (sel, v) => { const el = $(sel); if(el.textContent !== v) el.textContent = v; };
+  set("#nkClock", screen === "block" ? txt("#blockClock") : "");
+  set("#nkLabel", screen === "jam" ? noteName(J.keyPc, J.keyPc) + " " + MODE_BY_ID[$("#jamMode").value].name : txt(cfg.label));
+  set("#nkBpm", txt(cfg.bpm));
+  set("#nkPlay", /stop/i.test(txt(cfg.play)) ? "Stop" : "Play");
+  $("#nkGuide").hidden = !cfg.guide;
+  $("#nkHear").hidden = !cfg.hear;
+  if(cfg.guide) set("#nkGuide", /stop/i.test(txt(cfg.guide)) ? "Stop guide" : "Guide");
+  if(cfg.hear) set("#nkHear", txt(cfg.hear));
+  // the chord sounding now and the one after it, while the band is following a chart
+  let now = "", next = "";
+  if(Audio2.T.playing && Audio2.T.mode === "band"){
+    if(screen === "block" && !$("#bandCard").hidden){ now = txt("#chordNow"); next = txt("#chordNext"); }
+    else if(screen === "jam" && J.chords.length){
+      now = J.chords[J.idx % J.chords.length].label;
+      next = J.chords.length > 1 ? J.chords[(J.idx + 1) % J.chords.length].label : "";
+    }
+  }
+  $("#nkChord").hidden = !now;
+  set("#nkNow", now);
+  set("#nkNext", next && next !== "—" ? "then " + next : "");
+}
+function neckLoop(){ if(!neckOn) return; neckPaint(); requestAnimationFrame(neckLoop); }
+/* A page may only go full screen from a tap or from the rotation itself, so both are tried.
+   Phones that don't allow it at all (iPhone) just get the edge-to-edge layout. */
+function neckFullscreen(on){
+  const el = document.documentElement;
+  if(on){
+    if(document.fullscreenElement || !el.requestFullscreen) return;
+    const p = el.requestFullscreen({ navigationUI:"hide" });
+    if(p && p.then) p.then(() => { neckFull = true; }, () => {});
+  } else if(neckFull){
+    neckFull = false;
+    if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  }
+}
+function bindNeck(){
+  const press = key => () => { const c = neckOn; if(c && c[key]) $(c[key]).click(); neckPaint(); };
+  $("#nkPlay").onclick = press("play");
+  $("#nkGuide").onclick = press("guide");
+  $("#nkHear").onclick = press("hear");
+  const nudge = d => () => {
+    const c = neckOn; if(!c) return;
+    if(c.slider){ const s = $(c.slider); s.value = parseInt(s.value, 10) + d; s.oninput(); }
+    else $(d < 0 ? c.down : c.up).click();
+    neckPaint();
+  };
+  $("#nkDown").onclick = nudge(-5);
+  $("#nkUp").onclick = nudge(5);
+  // the media query is the trigger; the resize is a second chance for browsers that are slow to report it
+  if(neckMQ.addEventListener) neckMQ.addEventListener("change", neckApply); else neckMQ.addListener(neckApply);
+  window.addEventListener("resize", neckApply);
+  document.addEventListener("fullscreenchange", () => { if(!document.fullscreenElement) neckFull = false; });
+  // `screen` is the app's own variable here, so the real one is window.screen
+  const so = window.screen.orientation;
+  if(so && so.addEventListener) so.addEventListener("change", () => {
+    const side = so.type.indexOf("landscape") === 0;
+    const phone = Math.min(window.screen.width, window.screen.height) <= 540;
+    if(side && phone && neckScreen()) neckFullscreen(true);
+    else if(!side) neckFullscreen(false);
+  });
+}
+
 /* ---------- boot ---------- */
 function boot(){
   Store.load();
   bind();
+  bindNeck();
   S.labelMode = Store.load().labelMode || "deg";
   go("home");
   scheduleReminder();
