@@ -109,19 +109,25 @@ const Audio2 = (function(){
       });
     });
   }
-  /* voice a chord in a comfortable register, close to the previous voicing */
-  let lastVoicing = null;
+  /* TEMPORARY, for a listening test: ?pad=old in the address plays the pad as it was voiced before. */
+  const PAD_OLD = typeof location !== "undefined" && /[?&]pad=old\b/.test(location.search);
+  /* voice a chord in a comfortable register, G3 to D5 */
   function voiceChord(ch){
-    const notes = ch.intervals.map(i => 60 + ((ch.pc + i) % 24));
-    let v = ch.intervals.slice(0,4).map(i => {
-      let m = 48 + ch.pc + i;
-      while(m < 55) m += 12;
-      while(m > 74) m -= 12;
-      return m;
-    });
-    v = v.sort((a,b)=>a-b);
-    lastVoicing = v;
-    return v;
+    const fold = i => { let m = 48 + ch.pc + i; while(m < 55) m += 12; while(m > 74) m -= 12; return m; };
+    if(PAD_OLD) return ch.intervals.slice(0,4).map(fold).sort((a,b)=>a-b);
+    // One of each chord tone, and four notes is a full pad. A bigger chord gives up its root (the bass
+    // has that) and then its 5th, so the 9th, ♯9 or 13th it is named for is still in there.
+    let ivs = ch.intervals.filter((iv, k, a) => a.findIndex(x => x % 12 === iv % 12) === k);
+    if(ivs.length > 4) ivs = ivs.filter(iv => iv % 12 !== 0);
+    if(ivs.length > 4) ivs = ivs.filter(iv => iv % 12 !== 7);
+    const v = ivs.slice(0,4).map(fold).sort((a,b)=>a-b);
+    // Two notes a semitone apart grind against each other: the root on top of a major 7th, a ♯9 under
+    // the 3rd. One of them moves an octave, whichever stays nearer the middle, and they ring a major 7th apart.
+    for(let k = 0; k < v.length - 1; k++) if(v[k+1] - v[k] === 1){
+      if(v[k] < 64) v[k] += 12; else v[k+1] -= 12;
+      break;
+    }
+    return v.sort((a,b)=>a-b);
   }
   /* pc counts up from C, so it's added to a C (MIDI 24): the root lands between C2 and B2 */
   function bassMidi(pc, low){ let m = 24 + pc; while(m < (low||36)) m += 12; while(m > 50) m -= 12; return m; }
@@ -231,8 +237,18 @@ const Audio2 = (function(){
         if(g.comp === "jazz"){
           // walking bass, one note per beat: root, 3rd, 5th, 7th. A chord with no 7th comes back
           // down to its 3rd, and one with no 3rd either goes root, 5th, octave, 5th.
-          const walk = third === rootB + 12 ? [rootB, fifth, third, fifth] : [rootB, third, fifth, sev];
-          bassNote(t, walk[beatInBar % 4], spb()*0.9, 0.9);
+          // Each bar starts on whichever octave of its root is nearer the note just played, so the line
+          // never drops more than an octave at a bar line. From the upper root it walks the same notes
+          // back down.
+          if(isDownbeat || T._walkCh !== ch){
+            const up = [rootB].concat(third === rootB + 12 ? [fifth, third, fifth] : [third, fifth, sev]);
+            const high = T._lastBass != null && T._lastBass - rootB > 6;
+            T._walk = !high ? up : third === rootB + 12 ? [third, fifth, rootB, fifth]
+                    : sev === third ? [rootB + 12, fifth, third, fifth] : [rootB + 12, sev, fifth, third];
+            T._walkCh = ch;
+          }
+          T._lastBass = T._walk[beatInBar % 4];
+          bassNote(t, T._lastBass, spb()*0.9, 0.9);
           if(beatInBar === 1 || beatInBar === 3) chordStab(t + spb()*0.665, v, spb()*0.5, 0.85);
         } else if(g.comp === "shuffle"){
           bassNote(t, beatInBar%2===0 ? rootB : fifth, spb()*0.85, 1);
@@ -292,6 +308,7 @@ const Audio2 = (function(){
       if(T.playing) return;
       T.playing = true;
       T.beat = 0;
+      T._walk = T._walkCh = T._lastBass = null;
       T.countInLeft = (T.countIn || T._countInOnce) ? T.beatsPerBar : 0;
       T._countInOnce = false;
       T.nextTime = ctx.currentTime + 0.08;

@@ -394,18 +394,17 @@ details.more[open] summary{margin-bottom:10px}
 .chartline span{padding:2px 6px;border-radius:4px}
 .chartline span.now{background:rgba(255,157,47,.2);color:var(--amber)}
 .chartline i{font-style:normal;color:var(--cream-3);padding:0 2px}
-/* ---------- neck view: a phone turned on its side ----------
-   The fretboard takes the whole screen and one strip of controls sits under it.
-   The app script sets body.neck and .stage, and only on a phone in landscape. */
+/* ---------- a phone turned on its side ----------
+   The whole app runs the width of the screen and scrolls just as it does upright. On a screen with
+   a fretboard, one strip of the neck's controls stays along the bottom edge. The app script sets
+   body.side (any screen) and body.neck (a screen with a fretboard), and only on a phone in landscape. */
 .neckbar{display:none}
-body.neck{overflow:hidden}
-.fretwrap.stage{
-  position:fixed;z-index:40;left:0;right:0;top:0;bottom:calc(54px + env(safe-area-inset-bottom));
-  padding:8px max(10px,env(safe-area-inset-right)) 4px max(10px,env(safe-area-inset-left));
-  border-radius:0;overflow:hidden;background:var(--tolex);
-}
-/* fitted to the screen both ways, so even a run through four boxes shows whole */
-.fretwrap.stage svg{min-width:0!important;width:100%;height:100%}
+body.side .app{max-width:none;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+body.neck .app{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+body.neck .toast{bottom:calc(66px + env(safe-area-inset-bottom))}
+/* the neck is drawn whole and never taller than the screen, so even a run through four boxes fits */
+body.side .fretwrap{scroll-margin-top:8px}
+body.side .fretwrap svg{min-width:0!important;max-height:calc(100vh - 70px);max-height:calc(100dvh - 70px - env(safe-area-inset-bottom))}
 body.neck .neckbar{
   display:flex;align-items:center;gap:8px;position:fixed;z-index:41;left:0;right:0;bottom:0;
   height:calc(54px + env(safe-area-inset-bottom));

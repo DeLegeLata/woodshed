@@ -493,6 +493,7 @@ function enterBlock(){
   S.blockSeconds = S.remaining;
   S.paused = false;
   S.guide = false; S.guideStep = 0; S.hearSet = null; Audio2.auditionStop();
+  $("#guideBtn").textContent = "Guide me through it";   // the last block may have left it reading "Stop the guide"
   Audio2.drone(0, false);                 // a skipped block's drone mustn't carry on under this one
   S.score = { total:0, inKey:0, timing:[] };
 
@@ -582,15 +583,10 @@ function enterBlock(){
   const ex = $("#extraControls"); ex.innerHTML = "";
   if(b.drone){
     const btn = document.createElement("button");
+    btn.id = "droneBtn";
     btn.className = "btn quiet"; btn.textContent = "Root drone";
     btn.setAttribute("aria-pressed","false");
-    btn.onclick = () => {
-      const on = btn.getAttribute("aria-pressed") !== "true";
-      btn.setAttribute("aria-pressed", on ? "true" : "false");
-      btn.style.borderColor = on ? "var(--amber-2)" : "";
-      btn.style.color = on ? "var(--amber)" : "";
-      Audio2.drone(b.target.keyPc, on, b.target.mode.formula.indexOf(7) !== -1);
-    };
+    btn.onclick = () => setDrone(btn.getAttribute("aria-pressed") !== "true");
     ex.appendChild(btn);
   }
   if(b.ramp){
@@ -613,6 +609,20 @@ function enterBlock(){
     updateClock();
     if(S.remaining <= 0) endBlock();
   }, 1000);
+}
+
+/* The root drone and its button change together. The end of a block stops the sound, and "+5 more
+   minutes" comes back to the same button, so it mustn't be left looking pressed. */
+function setDrone(on){
+  const b = currentBlock(), btn = $("#droneBtn");
+  on = !!(on && b && b.target);
+  if(btn){
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.style.borderColor = on ? "var(--amber-2)" : "";
+    btn.style.color = on ? "var(--amber)" : "";
+  }
+  if(on) Audio2.drone(b.target.keyPc, true, b.target.mode.formula.indexOf(7) !== -1);
+  else Audio2.drone(0, false);
 }
 
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
@@ -912,7 +922,7 @@ Audio2.T.onRamp = function(bpm){
 /* ---------- block end ---------- */
 function endBlock(){
   if(S.tick){ clearInterval(S.tick); S.tick = null; }
-  Audio2.stop(); Audio2.drone(0,false); setPlayLabel();
+  Audio2.stop(); setDrone(false); setPlayLabel();
   Audio2.chime("block");
   if(S.recording) finishRecording();
   const b = currentBlock();
@@ -1972,37 +1982,47 @@ function scheduleReminder(){
   else if(Notification.permission === "default") Notification.requestPermission().then(p => { if(p === "granted") run(); });
 }
 
-/* ---------- neck view: a phone turned on its side ----------
-   The fretboard of the screen you're on fills the display, with one strip of controls under it.
-   The strip presses that screen's own buttons and copies their labels, so nothing is wired twice. */
+/* ---------- a phone turned on its side ----------
+   The whole app runs the width of the screen and scrolls just as it does upright. On a screen with a
+   fretboard the neck is drawn whole, as big as the screen allows, and one strip of its controls stays
+   along the bottom edge. The strip presses that screen's own buttons and copies their labels, so
+   nothing is wired twice. */
 const NECK = {
   block:{ wrap:"#fretWrap", label:"#fretLabel", bpm:"#bpmReadout",    play:"#playBtn", guide:"#guideBtn", hear:"#listenBtn", down:"#bpmDown", up:"#bpmUp" },
   runs: { wrap:"#runFret",  label:"#runLabel",  bpm:"#runBpmReadout", play:"#runPlay", guide:"#runGuide", hear:"#runHear",   down:"#runDown", up:"#runUp" },
   jam:  { wrap:"#jamFret",  bpm:"#jamBpmReadout", play:"#jamPlay", slider:"#jamBpm" }
 };
 const neckMQ = window.matchMedia("(orientation:landscape) and (max-height:540px) and (pointer:coarse)");
-let neckOn = null, neckFull = false;
+let neckOn = null, neckSide = false, neckFull = false;
 /* The screen's entry in NECK if it has a fretboard showing, else null. */
 function neckScreen(){
   const cfg = NECK[screen];
   return cfg && !(screen === "block" && $("#fretCard").hidden) ? cfg : null;
 }
 function neckApply(){
-  const cfg = neckMQ.matches ? neckScreen() : null, was = neckOn;
+  const side = neckMQ.matches, cfg = side ? neckScreen() : null, was = neckOn;
+  if(side !== neckSide){
+    neckSide = side;
+    document.body.classList.toggle("side", side);
+    if(side){
+      // Turned onto its side on a screen with a neck: bring the whole of it into view, once. After
+      // that the page scrolls freely. (Not while typing: a keyboard can change the screen's shape too.)
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+      if(cfg && !typing) $(cfg.wrap).scrollIntoView({ block:"start" });
+    } else {
+      neckFullscreen(false);
+      // upright, a long diagram scrolls sideways again, so open it where the run starts
+      if(screen === "runs"){ drawRun(true); drawRun(); }
+      else if(screen === "block"){ const b = currentBlock(); if(b && b.run && !S.guide) drawFret(true); drawFret(); }
+    }
+  }
   if(cfg === was) return;
-  if(was) $(was.wrap).classList.remove("stage");
   neckOn = cfg;
   document.body.classList.toggle("neck", !!cfg);
   if(cfg){
-    $(cfg.wrap).classList.add("stage");
-    // arriving by a tap (the rotation asks for itself, in boot)
+    // arriving by a tap (the rotation asks for itself, in bindNeck)
     if(navigator.userActivation && navigator.userActivation.isActive) neckFullscreen(true);
     if(!was) neckLoop();
-  } else {
-    neckFullscreen(false);
-    // back in the page the diagram scrolls again, so open it where the run starts
-    if(screen === "runs"){ drawRun(true); drawRun(); }
-    else if(screen === "block"){ const b = currentBlock(); if(b && b.run && !S.guide) drawFret(true); drawFret(); }
   }
 }
 function neckPaint(){
@@ -2066,7 +2086,7 @@ function bindNeck(){
   if(so && so.addEventListener) so.addEventListener("change", () => {
     const side = so.type.indexOf("landscape") === 0;
     const phone = Math.min(window.screen.width, window.screen.height) <= 540;
-    if(side && phone && neckScreen()) neckFullscreen(true);
+    if(side && phone) neckFullscreen(true);
     else if(!side) neckFullscreen(false);
   });
 }

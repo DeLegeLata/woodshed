@@ -335,25 +335,66 @@ const CHORD_TYPES = {
   "9":[0,4,7,10,14], "m9":[0,3,7,10,14], "maj9":[0,4,7,11,14], "add9":[0,4,7,14],
   "7sus4":[0,5,7,10], "13":[0,4,7,10,14,21], "7#9":[0,4,7,10,15]
 };
+/* Other ways of writing the same chords, and the nearest chord there is for a few that have no entry. */
+const CHORD_ALIAS = {
+  "maj6":"6", "maj13":"maj9", "dom":"7", "dom9":"9", "dom13":"13", "add2":"add9", "#5":"aug",
+  "7sus":"7sus4", "9sus4":"7sus4", "9sus":"7sus4", "11":"7sus4", "m11":"m7", "m13":"m7",
+  "o":"dim", "o7":"dim7", "°7":"dim7", "ø7":"m7b5", "alt":"7#9", "7alt":"7#9"
+};
+/* A typed suffix in the spelling CHORD_TYPES uses, whether or not there is a chord for it. */
+function chordSuffix(raw){
+  const q = String(raw).replace(/♯/g,"#").replace(/♭/g,"b").replace(/[\s()]/g,"");
+  if(CHORD_TYPES[q]) return q;
+  const n = q.replace(/^M(?![A-Za-z])/, "maj")                    // CM9 is a major ninth, not a minor one
+    .replace(/^[Δ△^](?=9|13)/, "maj").replace(/^[Δ△^]7?/, "maj7")
+    .toLowerCase()
+    .replace(/^(major|maj|ma|mj)(?![a-z])/, "maj")
+    .replace(/^(minor|min|mi|-)(?![a-z])/, "m")
+    .replace(/(.)-(?=\d)/g, "$1b").replace(/(.)\+(?=\d)/g, "$1#");
+  return CHORD_ALIAS[n] !== undefined ? CHORD_ALIAS[n] : n;
+}
+/* The CHORD_TYPES key for a typed suffix. An unknown one keeps as much of itself as there is a chord
+   for, so Cm11 stays minor and C7b9 stays a seventh instead of both turning into C major. */
+function chordQuality(raw){
+  let q = chordSuffix(raw);
+  while(!CHORD_TYPES[q]) q = q.slice(0, -1);
+  return q;
+}
 function parseChord(str){
-  const s = String(str).trim().replace(/b/g,"♭").replace(/#/g,"♯");
-  const m = s.match(/^([A-Ga-g])([♯♭]?)(.*)$/);
+  // only the letter straight after the root is an accidental: the b in "bm7" is the root, B
+  const m = String(str).trim().match(/^([A-Ga-g])([#♯b♭]?)(.*)$/);
   if(!m) return null;
   const base = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1].toUpperCase()];
-  let pc = base + (m[2]==="♯"?1:m[2]==="♭"?-1:0);
-  pc = ((pc%12)+12)%12;
-  let q = m[3].replace(/♯/g,"#").replace(/♭/g,"b").trim();
-  const iv = CHORD_TYPES[q] || CHORD_TYPES[q.toLowerCase()] || CHORD_TYPES[""];
-  return { pc, quality:q, intervals:iv, label:str.trim() };
+  const acc = m[2] === "#" || m[2] === "♯" ? 1 : m[2] ? -1 : 0;
+  // a slash chord keeps its own quality: the note after the slash belongs to the bass
+  const q = chordQuality(m[3].split("/")[0]);
+  return { pc:(base + acc + 12) % 12, quality:q, intervals:CHORD_TYPES[q],
+           label:m[1].toUpperCase() + (acc > 0 ? "♯" : acc < 0 ? "♭" : "") + m[3].trim() };
 }
 function parseChart(text){
-  return String(text).split(/[|,\n]+/).map(s=>s.trim()).filter(Boolean)
-    .map(parseChord).filter(Boolean);
+  const toks = [];
+  // chords are separated by bars, commas, spaces, or dashes that run into the next root ("Am-F-C-G")
+  String(text).replace(/[-–—]+(?=[A-G])/g, " ").split(/[|,\s]+/).forEach(t => {
+    if(!t || /^[-–—>→\/.%:;]+$/.test(t)) return;
+    // "C maj7", "A dim": a suffix typed on its own belongs to the chord before it
+    if(CHORD_TYPES[chordSuffix(t)]){ if(toks.length) toks[toks.length-1] += t; }
+    else toks.push(t);
+  });
+  return toks.map(parseChord).filter(Boolean);
 }
 
 /* ---------- progressions ---------- */
+/* The key to spell a mode's chords in. It is the parent major key, the way scaleNotes does it, so
+   G Aeolian gets E♭maj7 rather than D♯maj7. Two cases keep the root's own name instead: a root on a
+   black key (D♭ Dorian would turn into C♯ Dorian under its own heading), and a parent of F♯/G♭,
+   which can be written either way. */
+function spellPc(rootPc, modeId){
+  const parent = parentMajorPc(rootPc, modeId);
+  return parent === 6 || SHARP[rootPc].length > 1 ? rootPc : parent;
+}
 function modalVamp(rootPc, modeId){
-  const k = p => noteName(((rootPc+p)%12+12)%12, rootPc);
+  const sp = spellPc(rootPc, modeId);
+  const k = p => noteName(((rootPc+p)%12+12)%12, sp);
   switch(modeId){
     case "dorian":     return [k(0)+"m7", k(0)+"m7", k(5)+"7", k(5)+"7"];
     case "mixolydian": return [k(0)+"7", k(0)+"7", k(10)+"", k(0)+"7"];
@@ -377,7 +418,7 @@ const PROGRESSIONS = [
   { id:"blues",  name:"12-bar blues", home:"mixolydian", build:(r)=>blues12(r) },
   { id:"1564",   name:"I – V – vi – IV", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(7),k(9)+"m",k(5)];} },
   { id:"251",    name:"ii – V – I", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(2)+"m7",k(7)+"7",k(0)+"maj7",k(0)+"maj7"];} },
-  { id:"minblues",name:"Minor blues", home:"aeolian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0)+"m7",k(0)+"m7",k(0)+"m7",k(0)+"m7",k(5)+"m7",k(5)+"m7",k(0)+"m7",k(0)+"m7",k(8)+"7",k(7)+"7",k(0)+"m7",k(7)+"7"];} },
+  { id:"minblues",name:"Minor blues", home:"aeolian", build:(r)=>{const sp=spellPc(r,"aeolian"),k=p=>noteName((r+p)%12,sp);return [k(0)+"m7",k(0)+"m7",k(0)+"m7",k(0)+"m7",k(5)+"m7",k(5)+"m7",k(0)+"m7",k(0)+"m7",k(8)+"7",k(7)+"7",k(0)+"m7",k(7)+"7"];} },
   { id:"1451",   name:"I – IV – V", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(0),k(5),k(7)];} }
 ];
 
@@ -761,7 +802,7 @@ const LEVEL_NAME = ["","Beginner","Intermediate","Advanced"];
 const CLASSICS = [
  ["smoke","Smoke on the Water","Deep Purple",1,"Rock","G","aeolian","rock",112,"Gm | Gm | Gm | Gm | C | A♭ | Gm | Gm","Two-note fourths riff","Barre the riff as fourths on the D and G strings with one finger, and pluck both strings together. Fingers or hybrid picking get the bite."],
  ["sevennation","Seven Nation Army","The White Stripes",1,"Rock","E","aeolian","rock",124,"Em | Em | C | B","Single-note riff with slides","The riff sits on one string. Slide into the long notes instead of picking them again, and let the gaps breathe."],
- ["wildthing","Wild Thing","The Troggs",1,"Rock","A","mixolydian","rock",106,"A | D | E | D","Three-chord strumming","Big open chords with a loose wrist. Mute with your fretting hand between hits to get the stop-start punch."],
+ ["wildthing","Wild Thing","The Troggs",1,"Rock","A","ionian","rock",106,"A | D | E | D","Three-chord strumming","Big open chords with a loose wrist. Mute with your fretting hand between hits to get the stop-start punch."],
  ["louie","Louie Louie","The Kingsmen",1,"Rock","A","mixolydian","rock",120,"A | D | Em | D","Changing chords on time","Start moving your fingers on the last eighth note of the bar, so the new chord lands right on beat one."],
  ["knockin","Knockin' on Heaven's Door","Bob Dylan",1,"Folk rock","G","ionian","rock",69,"G | D | Am | Am | G | D | C | C","Slow strumming, first lead lines","A great first solo. The G major pentatonic box at the 3rd fret fits every chord. Aim for each chord's 3rd as it arrives."],
  ["horse","A Horse with No Name","America",1,"Folk rock","E","dorian","rock",122,"Em | D6","16th-note strumming, two shapes","There are only two chord shapes, so it's all in the strumming hand. Keep it moving in 16ths and accent the backbeat."],
@@ -776,7 +817,7 @@ const CLASSICS = [
  ["redhouse","Red House","Jimi Hendrix",3,"Blues","B","mixolydian","shuffle",60,"B7 | B7 | B7 | B7 | E7 | E7 | B7 | B7 | F♯7 | E7 | B7 | F♯7","Slow blues phrasing","At this tempo every note is exposed. Play fewer notes, bend them in tune, and let each phrase finish before starting the next."],
  ["thrillgone","The Thrill Is Gone","B.B. King",2,"Blues","B","aeolian","rock",90,"Bm7 | Bm7 | Bm7 | Bm7 | Em7 | Em7 | Bm7 | Bm7 | Gmaj7 | F♯7 | Bm7 | Bm7","Minor blues, vibrato, space","B.B. worked out of one small patch of the neck. Pick a comfortable box and let your vibrato do the talking. Over F♯7, hit A♯."],
  ["crossroads","Crossroads","Cream",3,"Blues rock","A","mixolydian","rock",126,"A7 | A7 | A7 | A7 | D7 | D7 | A7 | A7 | E7 | D7 | A7 | E7","Fast pentatonic over a driving 12-bar","Clapton mixes minor and major pentatonic. Land on C♯ (the 3rd of A7) and the minor licks turn into pure blues."],
- ["sunshine","Sunshine of Your Love","Cream",1,"Blues rock","D","dorian","rock",116,"D | D | G | D","Blues-scale riff","The riff uses the blues scale's ♭5. For the G section, play the same fingering one string set higher."],
+ ["sunshine","Sunshine of Your Love","Cream",1,"Blues rock","D","dorian","rock",116,"D5 | D5 | G | D5","Blues-scale riff","The riff uses the blues scale's ♭5. For the G section, play the same fingering one string set higher."],
  ["purplehaze","Purple Haze","Jimi Hendrix",2,"Rock","E","dorian","rock",108,"E7♯9 | E7♯9 | G | A","The Hendrix chord","E7♯9 has both a major and a minor third in it. Play minor pentatonic over it, since the ♯9 is already in the chord."],
  ["littlewing","Little Wing","Jimi Hendrix",3,"Rock","E","aeolian","rock",70,"Em | G | Am | Em | Bm | B♭ | Am | C | G | F | C | D","Chord embellishments","Hendrix decorates each chord with hammer-ons and pentatonic notes from inside the shape. Keep your thumb on the bass note while your fingers add the ornaments."],
  ["heyjoe","Hey Joe","Jimi Hendrix",2,"Rock","E","mixolydian","rock",82,"C | G | D | A | E | E","Circle-of-fifths changes","Each chord is a fifth above the one before. Link them with short walks on the bass strings up to the next root."],

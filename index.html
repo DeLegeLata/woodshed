@@ -408,18 +408,17 @@ details.more[open] summary{margin-bottom:10px}
 .chartline span{padding:2px 6px;border-radius:4px}
 .chartline span.now{background:rgba(255,157,47,.2);color:var(--amber)}
 .chartline i{font-style:normal;color:var(--cream-3);padding:0 2px}
-/* ---------- neck view: a phone turned on its side ----------
-   The fretboard takes the whole screen and one strip of controls sits under it.
-   The app script sets body.neck and .stage, and only on a phone in landscape. */
+/* ---------- a phone turned on its side ----------
+   The whole app runs the width of the screen and scrolls just as it does upright. On a screen with
+   a fretboard, one strip of the neck's controls stays along the bottom edge. The app script sets
+   body.side (any screen) and body.neck (a screen with a fretboard), and only on a phone in landscape. */
 .neckbar{display:none}
-body.neck{overflow:hidden}
-.fretwrap.stage{
-  position:fixed;z-index:40;left:0;right:0;top:0;bottom:calc(54px + env(safe-area-inset-bottom));
-  padding:8px max(10px,env(safe-area-inset-right)) 4px max(10px,env(safe-area-inset-left));
-  border-radius:0;overflow:hidden;background:var(--tolex);
-}
-/* fitted to the screen both ways, so even a run through four boxes shows whole */
-.fretwrap.stage svg{min-width:0!important;width:100%;height:100%}
+body.side .app{max-width:none;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+body.neck .app{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+body.neck .toast{bottom:calc(66px + env(safe-area-inset-bottom))}
+/* the neck is drawn whole and never taller than the screen, so even a run through four boxes fits */
+body.side .fretwrap{scroll-margin-top:8px}
+body.side .fretwrap svg{min-width:0!important;max-height:calc(100vh - 70px);max-height:calc(100dvh - 70px - env(safe-area-inset-bottom))}
 body.neck .neckbar{
   display:flex;align-items:center;gap:8px;position:fixed;z-index:41;left:0;right:0;bottom:0;
   height:calc(54px + env(safe-area-inset-bottom));
@@ -1303,25 +1302,66 @@ const CHORD_TYPES = {
   "9":[0,4,7,10,14], "m9":[0,3,7,10,14], "maj9":[0,4,7,11,14], "add9":[0,4,7,14],
   "7sus4":[0,5,7,10], "13":[0,4,7,10,14,21], "7#9":[0,4,7,10,15]
 };
+/* Other ways of writing the same chords, and the nearest chord there is for a few that have no entry. */
+const CHORD_ALIAS = {
+  "maj6":"6", "maj13":"maj9", "dom":"7", "dom9":"9", "dom13":"13", "add2":"add9", "#5":"aug",
+  "7sus":"7sus4", "9sus4":"7sus4", "9sus":"7sus4", "11":"7sus4", "m11":"m7", "m13":"m7",
+  "o":"dim", "o7":"dim7", "°7":"dim7", "ø7":"m7b5", "alt":"7#9", "7alt":"7#9"
+};
+/* A typed suffix in the spelling CHORD_TYPES uses, whether or not there is a chord for it. */
+function chordSuffix(raw){
+  const q = String(raw).replace(/♯/g,"#").replace(/♭/g,"b").replace(/[\s()]/g,"");
+  if(CHORD_TYPES[q]) return q;
+  const n = q.replace(/^M(?![A-Za-z])/, "maj")                    // CM9 is a major ninth, not a minor one
+    .replace(/^[Δ△^](?=9|13)/, "maj").replace(/^[Δ△^]7?/, "maj7")
+    .toLowerCase()
+    .replace(/^(major|maj|ma|mj)(?![a-z])/, "maj")
+    .replace(/^(minor|min|mi|-)(?![a-z])/, "m")
+    .replace(/(.)-(?=\d)/g, "$1b").replace(/(.)\+(?=\d)/g, "$1#");
+  return CHORD_ALIAS[n] !== undefined ? CHORD_ALIAS[n] : n;
+}
+/* The CHORD_TYPES key for a typed suffix. An unknown one keeps as much of itself as there is a chord
+   for, so Cm11 stays minor and C7b9 stays a seventh instead of both turning into C major. */
+function chordQuality(raw){
+  let q = chordSuffix(raw);
+  while(!CHORD_TYPES[q]) q = q.slice(0, -1);
+  return q;
+}
 function parseChord(str){
-  const s = String(str).trim().replace(/b/g,"♭").replace(/#/g,"♯");
-  const m = s.match(/^([A-Ga-g])([♯♭]?)(.*)$/);
+  // only the letter straight after the root is an accidental: the b in "bm7" is the root, B
+  const m = String(str).trim().match(/^([A-Ga-g])([#♯b♭]?)(.*)$/);
   if(!m) return null;
   const base = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1].toUpperCase()];
-  let pc = base + (m[2]==="♯"?1:m[2]==="♭"?-1:0);
-  pc = ((pc%12)+12)%12;
-  let q = m[3].replace(/♯/g,"#").replace(/♭/g,"b").trim();
-  const iv = CHORD_TYPES[q] || CHORD_TYPES[q.toLowerCase()] || CHORD_TYPES[""];
-  return { pc, quality:q, intervals:iv, label:str.trim() };
+  const acc = m[2] === "#" || m[2] === "♯" ? 1 : m[2] ? -1 : 0;
+  // a slash chord keeps its own quality: the note after the slash belongs to the bass
+  const q = chordQuality(m[3].split("/")[0]);
+  return { pc:(base + acc + 12) % 12, quality:q, intervals:CHORD_TYPES[q],
+           label:m[1].toUpperCase() + (acc > 0 ? "♯" : acc < 0 ? "♭" : "") + m[3].trim() };
 }
 function parseChart(text){
-  return String(text).split(/[|,\n]+/).map(s=>s.trim()).filter(Boolean)
-    .map(parseChord).filter(Boolean);
+  const toks = [];
+  // chords are separated by bars, commas, spaces, or dashes that run into the next root ("Am-F-C-G")
+  String(text).replace(/[-–—]+(?=[A-G])/g, " ").split(/[|,\s]+/).forEach(t => {
+    if(!t || /^[-–—>→\/.%:;]+$/.test(t)) return;
+    // "C maj7", "A dim": a suffix typed on its own belongs to the chord before it
+    if(CHORD_TYPES[chordSuffix(t)]){ if(toks.length) toks[toks.length-1] += t; }
+    else toks.push(t);
+  });
+  return toks.map(parseChord).filter(Boolean);
 }
 
 /* ---------- progressions ---------- */
+/* The key to spell a mode's chords in. It is the parent major key, the way scaleNotes does it, so
+   G Aeolian gets E♭maj7 rather than D♯maj7. Two cases keep the root's own name instead: a root on a
+   black key (D♭ Dorian would turn into C♯ Dorian under its own heading), and a parent of F♯/G♭,
+   which can be written either way. */
+function spellPc(rootPc, modeId){
+  const parent = parentMajorPc(rootPc, modeId);
+  return parent === 6 || SHARP[rootPc].length > 1 ? rootPc : parent;
+}
 function modalVamp(rootPc, modeId){
-  const k = p => noteName(((rootPc+p)%12+12)%12, rootPc);
+  const sp = spellPc(rootPc, modeId);
+  const k = p => noteName(((rootPc+p)%12+12)%12, sp);
   switch(modeId){
     case "dorian":     return [k(0)+"m7", k(0)+"m7", k(5)+"7", k(5)+"7"];
     case "mixolydian": return [k(0)+"7", k(0)+"7", k(10)+"", k(0)+"7"];
@@ -1345,7 +1385,7 @@ const PROGRESSIONS = [
   { id:"blues",  name:"12-bar blues", home:"mixolydian", build:(r)=>blues12(r) },
   { id:"1564",   name:"I – V – vi – IV", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(7),k(9)+"m",k(5)];} },
   { id:"251",    name:"ii – V – I", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(2)+"m7",k(7)+"7",k(0)+"maj7",k(0)+"maj7"];} },
-  { id:"minblues",name:"Minor blues", home:"aeolian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0)+"m7",k(0)+"m7",k(0)+"m7",k(0)+"m7",k(5)+"m7",k(5)+"m7",k(0)+"m7",k(0)+"m7",k(8)+"7",k(7)+"7",k(0)+"m7",k(7)+"7"];} },
+  { id:"minblues",name:"Minor blues", home:"aeolian", build:(r)=>{const sp=spellPc(r,"aeolian"),k=p=>noteName((r+p)%12,sp);return [k(0)+"m7",k(0)+"m7",k(0)+"m7",k(0)+"m7",k(5)+"m7",k(5)+"m7",k(0)+"m7",k(0)+"m7",k(8)+"7",k(7)+"7",k(0)+"m7",k(7)+"7"];} },
   { id:"1451",   name:"I – IV – V", home:"ionian", build:(r)=>{const k=p=>noteName((r+p)%12,r);return [k(0),k(0),k(5),k(7)];} }
 ];
 
@@ -1729,7 +1769,7 @@ const LEVEL_NAME = ["","Beginner","Intermediate","Advanced"];
 const CLASSICS = [
  ["smoke","Smoke on the Water","Deep Purple",1,"Rock","G","aeolian","rock",112,"Gm | Gm | Gm | Gm | C | A♭ | Gm | Gm","Two-note fourths riff","Barre the riff as fourths on the D and G strings with one finger, and pluck both strings together. Fingers or hybrid picking get the bite."],
  ["sevennation","Seven Nation Army","The White Stripes",1,"Rock","E","aeolian","rock",124,"Em | Em | C | B","Single-note riff with slides","The riff sits on one string. Slide into the long notes instead of picking them again, and let the gaps breathe."],
- ["wildthing","Wild Thing","The Troggs",1,"Rock","A","mixolydian","rock",106,"A | D | E | D","Three-chord strumming","Big open chords with a loose wrist. Mute with your fretting hand between hits to get the stop-start punch."],
+ ["wildthing","Wild Thing","The Troggs",1,"Rock","A","ionian","rock",106,"A | D | E | D","Three-chord strumming","Big open chords with a loose wrist. Mute with your fretting hand between hits to get the stop-start punch."],
  ["louie","Louie Louie","The Kingsmen",1,"Rock","A","mixolydian","rock",120,"A | D | Em | D","Changing chords on time","Start moving your fingers on the last eighth note of the bar, so the new chord lands right on beat one."],
  ["knockin","Knockin' on Heaven's Door","Bob Dylan",1,"Folk rock","G","ionian","rock",69,"G | D | Am | Am | G | D | C | C","Slow strumming, first lead lines","A great first solo. The G major pentatonic box at the 3rd fret fits every chord. Aim for each chord's 3rd as it arrives."],
  ["horse","A Horse with No Name","America",1,"Folk rock","E","dorian","rock",122,"Em | D6","16th-note strumming, two shapes","There are only two chord shapes, so it's all in the strumming hand. Keep it moving in 16ths and accent the backbeat."],
@@ -1744,7 +1784,7 @@ const CLASSICS = [
  ["redhouse","Red House","Jimi Hendrix",3,"Blues","B","mixolydian","shuffle",60,"B7 | B7 | B7 | B7 | E7 | E7 | B7 | B7 | F♯7 | E7 | B7 | F♯7","Slow blues phrasing","At this tempo every note is exposed. Play fewer notes, bend them in tune, and let each phrase finish before starting the next."],
  ["thrillgone","The Thrill Is Gone","B.B. King",2,"Blues","B","aeolian","rock",90,"Bm7 | Bm7 | Bm7 | Bm7 | Em7 | Em7 | Bm7 | Bm7 | Gmaj7 | F♯7 | Bm7 | Bm7","Minor blues, vibrato, space","B.B. worked out of one small patch of the neck. Pick a comfortable box and let your vibrato do the talking. Over F♯7, hit A♯."],
  ["crossroads","Crossroads","Cream",3,"Blues rock","A","mixolydian","rock",126,"A7 | A7 | A7 | A7 | D7 | D7 | A7 | A7 | E7 | D7 | A7 | E7","Fast pentatonic over a driving 12-bar","Clapton mixes minor and major pentatonic. Land on C♯ (the 3rd of A7) and the minor licks turn into pure blues."],
- ["sunshine","Sunshine of Your Love","Cream",1,"Blues rock","D","dorian","rock",116,"D | D | G | D","Blues-scale riff","The riff uses the blues scale's ♭5. For the G section, play the same fingering one string set higher."],
+ ["sunshine","Sunshine of Your Love","Cream",1,"Blues rock","D","dorian","rock",116,"D5 | D5 | G | D5","Blues-scale riff","The riff uses the blues scale's ♭5. For the G section, play the same fingering one string set higher."],
  ["purplehaze","Purple Haze","Jimi Hendrix",2,"Rock","E","dorian","rock",108,"E7♯9 | E7♯9 | G | A","The Hendrix chord","E7♯9 has both a major and a minor third in it. Play minor pentatonic over it, since the ♯9 is already in the chord."],
  ["littlewing","Little Wing","Jimi Hendrix",3,"Rock","E","aeolian","rock",70,"Em | G | Am | Em | Bm | B♭ | Am | C | G | F | C | D","Chord embellishments","Hendrix decorates each chord with hammer-ons and pentatonic notes from inside the shape. Keep your thumb on the bass note while your fingers add the ornaments."],
  ["heyjoe","Hey Joe","Jimi Hendrix",2,"Rock","E","mixolydian","rock",82,"C | G | D | A | E | E","Circle-of-fifths changes","Each chord is a fifth above the one before. Link them with short walks on the bass strings up to the next root."],
@@ -1897,19 +1937,25 @@ const Audio2 = (function(){
       });
     });
   }
-  /* voice a chord in a comfortable register, close to the previous voicing */
-  let lastVoicing = null;
+  /* TEMPORARY, for a listening test: ?pad=old in the address plays the pad as it was voiced before. */
+  const PAD_OLD = typeof location !== "undefined" && /[?&]pad=old\b/.test(location.search);
+  /* voice a chord in a comfortable register, G3 to D5 */
   function voiceChord(ch){
-    const notes = ch.intervals.map(i => 60 + ((ch.pc + i) % 24));
-    let v = ch.intervals.slice(0,4).map(i => {
-      let m = 48 + ch.pc + i;
-      while(m < 55) m += 12;
-      while(m > 74) m -= 12;
-      return m;
-    });
-    v = v.sort((a,b)=>a-b);
-    lastVoicing = v;
-    return v;
+    const fold = i => { let m = 48 + ch.pc + i; while(m < 55) m += 12; while(m > 74) m -= 12; return m; };
+    if(PAD_OLD) return ch.intervals.slice(0,4).map(fold).sort((a,b)=>a-b);
+    // One of each chord tone, and four notes is a full pad. A bigger chord gives up its root (the bass
+    // has that) and then its 5th, so the 9th, ♯9 or 13th it is named for is still in there.
+    let ivs = ch.intervals.filter((iv, k, a) => a.findIndex(x => x % 12 === iv % 12) === k);
+    if(ivs.length > 4) ivs = ivs.filter(iv => iv % 12 !== 0);
+    if(ivs.length > 4) ivs = ivs.filter(iv => iv % 12 !== 7);
+    const v = ivs.slice(0,4).map(fold).sort((a,b)=>a-b);
+    // Two notes a semitone apart grind against each other: the root on top of a major 7th, a ♯9 under
+    // the 3rd. One of them moves an octave, whichever stays nearer the middle, and they ring a major 7th apart.
+    for(let k = 0; k < v.length - 1; k++) if(v[k+1] - v[k] === 1){
+      if(v[k] < 64) v[k] += 12; else v[k+1] -= 12;
+      break;
+    }
+    return v.sort((a,b)=>a-b);
   }
   /* pc counts up from C, so it's added to a C (MIDI 24): the root lands between C2 and B2 */
   function bassMidi(pc, low){ let m = 24 + pc; while(m < (low||36)) m += 12; while(m > 50) m -= 12; return m; }
@@ -2019,8 +2065,18 @@ const Audio2 = (function(){
         if(g.comp === "jazz"){
           // walking bass, one note per beat: root, 3rd, 5th, 7th. A chord with no 7th comes back
           // down to its 3rd, and one with no 3rd either goes root, 5th, octave, 5th.
-          const walk = third === rootB + 12 ? [rootB, fifth, third, fifth] : [rootB, third, fifth, sev];
-          bassNote(t, walk[beatInBar % 4], spb()*0.9, 0.9);
+          // Each bar starts on whichever octave of its root is nearer the note just played, so the line
+          // never drops more than an octave at a bar line. From the upper root it walks the same notes
+          // back down.
+          if(isDownbeat || T._walkCh !== ch){
+            const up = [rootB].concat(third === rootB + 12 ? [fifth, third, fifth] : [third, fifth, sev]);
+            const high = T._lastBass != null && T._lastBass - rootB > 6;
+            T._walk = !high ? up : third === rootB + 12 ? [third, fifth, rootB, fifth]
+                    : sev === third ? [rootB + 12, fifth, third, fifth] : [rootB + 12, sev, fifth, third];
+            T._walkCh = ch;
+          }
+          T._lastBass = T._walk[beatInBar % 4];
+          bassNote(t, T._lastBass, spb()*0.9, 0.9);
           if(beatInBar === 1 || beatInBar === 3) chordStab(t + spb()*0.665, v, spb()*0.5, 0.85);
         } else if(g.comp === "shuffle"){
           bassNote(t, beatInBar%2===0 ? rootB : fifth, spb()*0.85, 1);
@@ -2080,6 +2136,7 @@ const Audio2 = (function(){
       if(T.playing) return;
       T.playing = true;
       T.beat = 0;
+      T._walk = T._walkCh = T._lastBass = null;
       T.countInLeft = (T.countIn || T._countInOnce) ? T.beatsPerBar : 0;
       T._countInOnce = false;
       T.nextTime = ctx.currentTime + 0.08;
@@ -3817,6 +3874,7 @@ function enterBlock(){
   S.blockSeconds = S.remaining;
   S.paused = false;
   S.guide = false; S.guideStep = 0; S.hearSet = null; Audio2.auditionStop();
+  $("#guideBtn").textContent = "Guide me through it";   // the last block may have left it reading "Stop the guide"
   Audio2.drone(0, false);                 // a skipped block's drone mustn't carry on under this one
   S.score = { total:0, inKey:0, timing:[] };
 
@@ -3906,15 +3964,10 @@ function enterBlock(){
   const ex = $("#extraControls"); ex.innerHTML = "";
   if(b.drone){
     const btn = document.createElement("button");
+    btn.id = "droneBtn";
     btn.className = "btn quiet"; btn.textContent = "Root drone";
     btn.setAttribute("aria-pressed","false");
-    btn.onclick = () => {
-      const on = btn.getAttribute("aria-pressed") !== "true";
-      btn.setAttribute("aria-pressed", on ? "true" : "false");
-      btn.style.borderColor = on ? "var(--amber-2)" : "";
-      btn.style.color = on ? "var(--amber)" : "";
-      Audio2.drone(b.target.keyPc, on, b.target.mode.formula.indexOf(7) !== -1);
-    };
+    btn.onclick = () => setDrone(btn.getAttribute("aria-pressed") !== "true");
     ex.appendChild(btn);
   }
   if(b.ramp){
@@ -3937,6 +3990,20 @@ function enterBlock(){
     updateClock();
     if(S.remaining <= 0) endBlock();
   }, 1000);
+}
+
+/* The root drone and its button change together. The end of a block stops the sound, and "+5 more
+   minutes" comes back to the same button, so it mustn't be left looking pressed. */
+function setDrone(on){
+  const b = currentBlock(), btn = $("#droneBtn");
+  on = !!(on && b && b.target);
+  if(btn){
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.style.borderColor = on ? "var(--amber-2)" : "";
+    btn.style.color = on ? "var(--amber)" : "";
+  }
+  if(on) Audio2.drone(b.target.keyPc, true, b.target.mode.formula.indexOf(7) !== -1);
+  else Audio2.drone(0, false);
 }
 
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
@@ -4236,7 +4303,7 @@ Audio2.T.onRamp = function(bpm){
 /* ---------- block end ---------- */
 function endBlock(){
   if(S.tick){ clearInterval(S.tick); S.tick = null; }
-  Audio2.stop(); Audio2.drone(0,false); setPlayLabel();
+  Audio2.stop(); setDrone(false); setPlayLabel();
   Audio2.chime("block");
   if(S.recording) finishRecording();
   const b = currentBlock();
@@ -5296,37 +5363,47 @@ function scheduleReminder(){
   else if(Notification.permission === "default") Notification.requestPermission().then(p => { if(p === "granted") run(); });
 }
 
-/* ---------- neck view: a phone turned on its side ----------
-   The fretboard of the screen you're on fills the display, with one strip of controls under it.
-   The strip presses that screen's own buttons and copies their labels, so nothing is wired twice. */
+/* ---------- a phone turned on its side ----------
+   The whole app runs the width of the screen and scrolls just as it does upright. On a screen with a
+   fretboard the neck is drawn whole, as big as the screen allows, and one strip of its controls stays
+   along the bottom edge. The strip presses that screen's own buttons and copies their labels, so
+   nothing is wired twice. */
 const NECK = {
   block:{ wrap:"#fretWrap", label:"#fretLabel", bpm:"#bpmReadout",    play:"#playBtn", guide:"#guideBtn", hear:"#listenBtn", down:"#bpmDown", up:"#bpmUp" },
   runs: { wrap:"#runFret",  label:"#runLabel",  bpm:"#runBpmReadout", play:"#runPlay", guide:"#runGuide", hear:"#runHear",   down:"#runDown", up:"#runUp" },
   jam:  { wrap:"#jamFret",  bpm:"#jamBpmReadout", play:"#jamPlay", slider:"#jamBpm" }
 };
 const neckMQ = window.matchMedia("(orientation:landscape) and (max-height:540px) and (pointer:coarse)");
-let neckOn = null, neckFull = false;
+let neckOn = null, neckSide = false, neckFull = false;
 /* The screen's entry in NECK if it has a fretboard showing, else null. */
 function neckScreen(){
   const cfg = NECK[screen];
   return cfg && !(screen === "block" && $("#fretCard").hidden) ? cfg : null;
 }
 function neckApply(){
-  const cfg = neckMQ.matches ? neckScreen() : null, was = neckOn;
+  const side = neckMQ.matches, cfg = side ? neckScreen() : null, was = neckOn;
+  if(side !== neckSide){
+    neckSide = side;
+    document.body.classList.toggle("side", side);
+    if(side){
+      // Turned onto its side on a screen with a neck: bring the whole of it into view, once. After
+      // that the page scrolls freely. (Not while typing: a keyboard can change the screen's shape too.)
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+      if(cfg && !typing) $(cfg.wrap).scrollIntoView({ block:"start" });
+    } else {
+      neckFullscreen(false);
+      // upright, a long diagram scrolls sideways again, so open it where the run starts
+      if(screen === "runs"){ drawRun(true); drawRun(); }
+      else if(screen === "block"){ const b = currentBlock(); if(b && b.run && !S.guide) drawFret(true); drawFret(); }
+    }
+  }
   if(cfg === was) return;
-  if(was) $(was.wrap).classList.remove("stage");
   neckOn = cfg;
   document.body.classList.toggle("neck", !!cfg);
   if(cfg){
-    $(cfg.wrap).classList.add("stage");
-    // arriving by a tap (the rotation asks for itself, in boot)
+    // arriving by a tap (the rotation asks for itself, in bindNeck)
     if(navigator.userActivation && navigator.userActivation.isActive) neckFullscreen(true);
     if(!was) neckLoop();
-  } else {
-    neckFullscreen(false);
-    // back in the page the diagram scrolls again, so open it where the run starts
-    if(screen === "runs"){ drawRun(true); drawRun(); }
-    else if(screen === "block"){ const b = currentBlock(); if(b && b.run && !S.guide) drawFret(true); drawFret(); }
   }
 }
 function neckPaint(){
@@ -5390,7 +5467,7 @@ function bindNeck(){
   if(so && so.addEventListener) so.addEventListener("change", () => {
     const side = so.type.indexOf("landscape") === 0;
     const phone = Math.min(window.screen.width, window.screen.height) <= 540;
-    if(side && phone && neckScreen()) neckFullscreen(true);
+    if(side && phone) neckFullscreen(true);
     else if(!side) neckFullscreen(false);
   });
 }
