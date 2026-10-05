@@ -1937,12 +1937,9 @@ const Audio2 = (function(){
       });
     });
   }
-  /* TEMPORARY, for a listening test: ?pad=old in the address plays the pad as it was voiced before. */
-  const PAD_OLD = typeof location !== "undefined" && /[?&]pad=old\b/.test(location.search);
-  /* voice a chord in a comfortable register, G3 to D5 */
+  /* voice a chord in a comfortable register: each note is folded into G3 to D5 */
   function voiceChord(ch){
     const fold = i => { let m = 48 + ch.pc + i; while(m < 55) m += 12; while(m > 74) m -= 12; return m; };
-    if(PAD_OLD) return ch.intervals.slice(0,4).map(fold).sort((a,b)=>a-b);
     // One of each chord tone, and four notes is a full pad. A bigger chord gives up its root (the bass
     // has that) and then its 5th, so the 9th, ♯9 or 13th it is named for is still in there.
     let ivs = ch.intervals.filter((iv, k, a) => a.findIndex(x => x % 12 === iv % 12) === k);
