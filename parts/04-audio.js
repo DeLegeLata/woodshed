@@ -409,6 +409,7 @@ const Audio2 = (function(){
 
   return {
     ensure, resume, now, T, GROOVES, GROOVE_IDS,
+    latency(){ const c = ensure(); return c.outputLatency || c.baseLatency || 0; },   // for the REAPER link's beat times
     start, stop, toggle, chime, drone, pluck, strum, scratch,
     audition, auditionStop, auditioning,
     setChart(chords){ T.chart = chords; },

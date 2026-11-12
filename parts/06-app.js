@@ -482,6 +482,7 @@ function startSession(plan){
   Audio2.T.accent = Store.load().settings.accent;
   Audio2.T.countIn = Store.load().settings.countIn;
   requestWake();
+  Link.sessionStart(plan);                // REAPER, if it's connected, records and measures each block
   enterBlock();
   go("block");
 }
@@ -496,6 +497,7 @@ function enterBlock(){
   $("#guideBtn").textContent = "Guide me through it";   // the last block may have left it reading "Stop the guide"
   Audio2.drone(0, false);                 // a skipped block's drone mustn't carry on under this one
   S.score = { total:0, inKey:0, timing:[] };
+  Link.blockStart(b, S.idx, S.plan.blocks.length);
 
   $("#blockKind").textContent = ({
     warmup:"Warm up", technique:"Technique", mode:"Mode of the day",
@@ -880,6 +882,7 @@ function setPlayLabel(){
 
 Audio2.T.onBeat = function(t, beatInBar, isDown, counting, absBeat){
   S.lastBeatTime = t;
+  if(screen === "block") Link.beat(t, beatInBar, counting, absBeat);
   drillBeat(t, beatInBar, counting, absBeat);
   const delay = Math.max(0, (t - Audio2.now()) * 1000);
   setTimeout(() => {
@@ -926,6 +929,7 @@ function endBlock(){
   Audio2.chime("block");
   if(S.recording) finishRecording();
   const b = currentBlock();
+  Link.blockEnd(b, S.idx);
 
   $("#endBlockTitle").textContent = b.title;
   const hasScore = b.listen && Mic.enabled && S.score.total >= 8;
@@ -947,6 +951,30 @@ function endBlock(){
   $$("#scr-blockend .rate button").forEach(x => x.style.borderColor = "");
   S.pendingRate = hasScore ? Math.max(1, Math.min(3, Math.round((100*S.score.inKey/S.score.total)/34))) : 2;
   go("blockend");
+  showReaper(b, S.idx);
+}
+
+/* REAPER's measurement of the block just played, when the link is on (a computer with REAPER only).
+   It arrives a few seconds after the block ends and sets the suggested rating; you can still pick your own. */
+function showReaper(b, idx){
+  const box = $("#endReaper");
+  box.hidden = true;
+  if(!Link.ready() || b.quiz) return;
+  box.hidden = false;
+  $("#endReaperHead").textContent = "REAPER is measuring that block\u2026";
+  $("#endReaperBody").innerHTML = "";
+  Link.result(idx + 1, 25000).then(r => {
+    if(!S.plan || S.idx !== idx || screen !== "blockend") return;     // moved on already
+    if(!r){ $("#endReaperHead").textContent = "REAPER didn\u2019t answer. Is it open?"; return; }
+    if(!r.ok){ $("#endReaperHead").textContent = r.message || "REAPER couldn\u2019t score that block."; return; }
+    $("#endReaperHead").textContent = "REAPER measured it: " + r.score + " / 100";
+    $("#endReaperBody").innerHTML =
+      (r.stats || []).map(s => '<div class="kv"><span class="k">' + esc(s[0]) + '</span><span class="v">' + esc(s[1]) + '</span></div>').join("") +
+      (r.tips || []).map(t => '<div class="tiny dim" style="margin-top:8px">' + esc(t) + '</div>').join("");
+    S.pendingRate = r.rate;
+    $$("#scr-blockend .rate button").forEach(x =>
+      x.style.borderColor = parseInt(x.dataset.rate, 10) === r.rate ? "var(--amber)" : "");
+  });
 }
 
 function commitBlock(rate){
@@ -990,6 +1018,7 @@ function finishSession(){
   Audio2.stop(); Audio2.drone(0,false);
   releaseWake();
   if(stopScoring){ stopScoring(); stopScoring = null; }
+  Link.sessionEnd("done");
   Audio2.chime("done");
 
   const mins = S.plan ? S.plan.blocks.reduce((a,b)=>a+b.minutes,0) : 0;
@@ -1677,6 +1706,7 @@ function bind(){
     const partial = Math.max(1, done + Math.round((S.blockSeconds - S.remaining)/60));
     if(S.tick) clearInterval(S.tick);
     Store.recordSession(partial, { bailed:true });
+    Link.sessionEnd("bailed");
     S.plan = null; releaseWake();
     Audio2.drone(0, false);
     toast("Logged " + partial + " min. Go and play.");
@@ -1691,6 +1721,7 @@ function bind(){
   });
   $("#extendBtn").onclick = () => {
     S.remaining = 5*60; S.blockSeconds += 5*60;
+    Link.blockStart(currentBlock(), S.idx, S.plan.blocks.length);   // REAPER records the extra five minutes too
     S.paused = false;
     if(S.tick) clearInterval(S.tick);
     S.tick = setInterval(() => {
@@ -1817,6 +1848,20 @@ function bind(){
     s.reminder = e.target.value; Store.save();
     scheduleReminder();
   };
+  // REAPER link: only where the browser can open a folder (a computer, not a phone)
+  const refreshLink = () => Link.status().then(s => {
+    $("#linkStatus").textContent = s.text;
+    $("#linkBtn").textContent = s.connected ? "Disconnect from REAPER" : "Connect to REAPER";
+    $("#linkBtn").dataset.on = s.connected ? "1" : "";
+  });
+  if(Link.supported){
+    $("#linkWrap").hidden = false;
+    refreshLink();
+    $("#linkBtn").onclick = () => {
+      const job = $("#linkBtn").dataset.on ? Link.disconnect() : Link.connect();
+      job.then(refreshLink, refreshLink);           // a cancelled folder pick just leaves it as it was
+    };
+  }
   $("#exportBtn").onclick = () => {
     const txt = Store.exportJSON();
     navigator.clipboard && navigator.clipboard.writeText(txt)

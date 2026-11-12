@@ -217,6 +217,10 @@
         <div class="kv"><span class="k">Notes in the shape</span><span class="v" id="endAcc">&mdash;</span></div>
         <div class="kv"><span class="k">On the beat</span><span class="v" id="endTime">&mdash;</span></div>
       </div>
+      <div id="endReaper" hidden>
+        <div class="legend legend-amber" id="endReaperHead"></div>
+        <div id="endReaperBody"></div>
+      </div>
       <div id="endRateWrap">
         <div class="legend" style="margin-bottom:8px">How did that go?</div>
         <div class="rate">
@@ -499,6 +503,11 @@
       <label class="field"><span class="legend">Daily reminder</span><input type="time" id="setReminder" value="19:00"></label>
       <div class="legend" style="margin-top:4px">Rest days &mdash; these never break your streak</div>
       <div class="weekdots" id="restDays"></div>
+      <div id="linkWrap" hidden>
+        <div class="legend" style="margin-top:14px">REAPER on this computer</div>
+        <div class="tiny dim" id="linkStatus">Not connected.</div>
+        <button class="btn quiet wide" id="linkBtn" style="margin-top:8px">Connect to REAPER</button>
+      </div>
       <div class="legend" style="margin-top:14px">Your data</div>
       <div class="tiny dim">Everything lives on this device only. Nothing is uploaded anywhere.</div>
       <div class="row">
