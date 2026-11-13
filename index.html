@@ -4908,7 +4908,17 @@ function renderStats(){
   });
 }
 
+/* the REAPER line in Settings: checked when Settings opens and every 2 s while it's open (Nov 13: it used to be
+   checked only at start-up and on the button, so it kept saying "REAPER isn't answering" after REAPER came back) */
+function refreshLink(){
+  return Link.status().then(s => {
+    $("#linkStatus").textContent = s.text;
+    $("#linkBtn").textContent = s.connected ? "Disconnect from REAPER" : "Connect to REAPER";
+    $("#linkBtn").dataset.on = s.connected ? "1" : "";
+  });
+}
 function renderSettings(){
+  if(Link.supported) refreshLink();
   const s = Store.load().settings;
   const set = (id,v) => $(id).setAttribute("aria-pressed", v ? "true":"false");
   set("#setCountin", s.countIn); set("#setAccent", s.accent);
@@ -5390,14 +5400,10 @@ function bind(){
     scheduleReminder();
   };
   // REAPER link: only where the browser can open a folder (a computer, not a phone)
-  const refreshLink = () => Link.status().then(s => {
-    $("#linkStatus").textContent = s.text;
-    $("#linkBtn").textContent = s.connected ? "Disconnect from REAPER" : "Connect to REAPER";
-    $("#linkBtn").dataset.on = s.connected ? "1" : "";
-  });
   if(Link.supported){
     $("#linkWrap").hidden = false;
     refreshLink();
+    setInterval(() => { if(screen === "settings" && !document.hidden) refreshLink(); }, 2000);   // REAPER may open or close while Settings is up
     $("#linkBtn").onclick = () => {
       const job = $("#linkBtn").dataset.on ? Link.disconnect() : Link.connect();
       job.then(refreshLink, refreshLink);           // a cancelled folder pick just leaves it as it was
