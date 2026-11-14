@@ -56,18 +56,37 @@ const Link = (() => {
   }
 
   const flat = v => String(v == null ? "" : v).replace(/[\t\r\n]+/g, " ");
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  /* did the file get there anyway? Edge can report an error after the file is in place (Nov 13: REAPER read it
+     before Edge had stamped it, and Edge said "Aborted due to security policy") */
+  async function landed(name, text){
+    try{ const f = await (await dir.getFileHandle(name)).getFile(); return (await f.text()) === text; }catch(e){ return false; }
+  }
+  /* One event, written whole. A failed write is tried three times under the same name; if it still fails, that one
+     event is skipped and the link stays on for the next (it used to switch off for the rest of the session). Only
+     a lost folder permission switches it off. */
   function send(type, o, extra){
     q = q.then(async () => {
-      if(!ok || !dir) return;
-      try{
-        seq++;
-        const body = Object.keys(o).map(k => k + "\t" + flat(o[k])).join("\n") + "\n" + (extra && extra.length ? extra.join("\n") + "\n" : "");
-        const name = "ev-" + Date.now() + "-" + String(seq).padStart(4, "0") + "-" + type + ".txt";
-        const fh = await dir.getFileHandle(name, { create:true });
-        const w = await fh.createWritable();
-        await w.write("type\t" + type + "\nsession\t" + sess + "\nepoch\t" + Date.now() + "\n" + body);
-        await w.close();
-      }catch(e){ ok = false; }                      // folder gone or permission dropped: carry on without REAPER
+      if(!dir) return;
+      if(!ok && !(await resume(false))) return;      // permission gone: carry on without REAPER
+      seq++;
+      const body = Object.keys(o).map(k => k + "\t" + flat(o[k])).join("\n") + "\n" + (extra && extra.length ? extra.join("\n") + "\n" : "");
+      const name = "ev-" + Date.now() + "-" + String(seq).padStart(4, "0") + "-" + type + ".txt";
+      const text = "type\t" + type + "\nsession\t" + sess + "\nepoch\t" + Date.now() + "\n" + body;
+      for(let tries = 1; tries <= 3; tries++){
+        try{
+          const fh = await dir.getFileHandle(name, { create:true });
+          const w = await fh.createWritable();
+          await w.write(text);
+          await w.close();
+          return;
+        }catch(e){
+          if(await landed(name, text)) return;       // it got there; Edge only complained afterwards
+          if(tries < 3) await wait(400);
+        }
+      }
+      try{ await dir.removeEntry(name); }catch(e){}  // don't leave an empty file holding up REAPER's queue
+      try{ ok = (await dir.queryPermission({ mode:"readwrite" })) === "granted"; }catch(e){ ok = false; }
     });
     return q;
   }
